@@ -1,0 +1,752 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profilo personale dello studente con obiettivo quotidiano, tema, ambito esempi, XP, serie, distintivi e promemoria.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificativo univoco Firebase Auth dell'utente."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Nome visualizzato dello studente."
+        },
+        "dailyGoalMinutes": {
+          "type": "number",
+          "enum": [5, 15, 30],
+          "description": "Obiettivo quotidiano di studio in minuti."
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["light", "dark"],
+          "description": "Tema grafico scelto dall'utente."
+        },
+        "exampleDomain": {
+          "type": "string",
+          "enum": ["scout", "outdoor", "casa"],
+          "description": "Ambito tematico preferito per analogie ed esempi."
+        },
+        "shareInLeaderboard": {
+          "type": "boolean",
+          "description": "Consenso opzionale a mostrare il nickname e i punti nella bacheca multiutente."
+        },
+        "focusMode": {
+          "type": "boolean",
+          "description": "Nasconde sezioni non necessarie durante la lettura delle lezioni."
+        },
+        "soundEffectsEnabled": {
+          "type": "boolean",
+          "description": "Abilita gli effetti sonori al completamento dei quiz e allo sblocco dei badge."
+        },
+        "hapticFeedbackEnabled": {
+          "type": "boolean",
+          "description": "Abilita il feedback aptico (vibrazione) sui dispositivi compatibili."
+        },
+        "xp": {
+          "type": "number",
+          "description": "Punti esperienza totali accumulati."
+        },
+        "streakCount": {
+          "type": "number",
+          "description": "Giorni consecutivi di studio."
+        },
+        "lastStudyDate": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Data ultimo studio completato in formato YYYY-MM-DD oppure vuota."
+        },
+        "todayDateKey": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Data corrente di tracciamento minuti in formato YYYY-MM-DD."
+        },
+        "todayMinutesStudied": {
+          "type": "number",
+          "description": "Minuti studiati nella giornata corrente."
+        },
+        "unlockedBadges": {
+          "type": "array",
+          "description": "Elenco degli ID distintivi sbloccati (massimo 20)."
+        },
+        "weeklyWeekKey": {
+          "type": "string",
+          "maxLength": 12,
+          "description": "Settimana ISO corrente per le sfide settimanali (YYYY-Www oppure vuota)."
+        },
+        "weeklyCompletedLessons": {
+          "type": "array",
+          "description": "Moduli superati durante la settimana corrente per le sfide a tempo."
+        },
+        "reminderEnabled": {
+          "type": "boolean",
+          "description": "Stato attivazione promemoria giornaliero."
+        },
+        "fcmEnabled": {
+          "type": "boolean",
+          "description": "Stato attivazione notifiche push Firebase Cloud Messaging."
+        },
+        "reminderTime": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "maxLength": 5,
+          "description": "Orario principale del promemoria in formato HH:MM."
+        },
+        "reminderTimes": {
+          "type": "array",
+          "description": "Elenco di orari personalizzati giornalieri in formato HH:MM (massimo 5)."
+        },
+        "reminderTimezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Fuso orario IANA dello studente per l'invio dei promemoria."
+        },
+        "reminderDays": {
+          "type": "array",
+          "description": "Giorni della settimana selezionati per il promemoria."
+        },
+        "reminderMessage": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Messaggio personalizzato del promemoria."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp creazione profilo."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ultimo aggiornamento profilo."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "dailyGoalMinutes",
+        "theme",
+        "exampleDomain",
+        "shareInLeaderboard",
+        "focusMode",
+        "soundEffectsEnabled",
+        "hapticFeedbackEnabled",
+        "xp",
+        "streakCount",
+        "lastStudyDate",
+        "todayDateKey",
+        "todayMinutesStudied",
+        "unlockedBadges",
+        "weeklyWeekKey",
+        "weeklyCompletedLessons",
+        "reminderEnabled",
+        "fcmEnabled",
+        "reminderTime",
+        "reminderTimes",
+        "reminderTimezone",
+        "reminderDays",
+        "reminderMessage",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LessonProgress": {
+      "title": "LessonProgress",
+      "description": "Stato di avanzamento per ciascuno dei 12 moduli di radiotecnica.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del proprietario."
+        },
+        "lessonId": {
+          "type": "string",
+          "pattern": "^lesson-(0[1-9]|1[0-2])$",
+          "maxLength": 20,
+          "description": "Identificativo del modulo (lesson-01 ... lesson-12)."
+        },
+        "completedSections": {
+          "type": "array",
+          "description": "Sottosezioni completate nel modulo."
+        },
+        "quizBestScore": {
+          "type": "number",
+          "description": "Miglior punteggio percentuale nel quiz lampo (0-100)."
+        },
+        "quizAttempts": {
+          "type": "number",
+          "description": "Numero di tentativi quiz effettuati."
+        },
+        "xpEarned": {
+          "type": "number",
+          "description": "XP ottenuti in questo modulo."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Indica se il modulo è stato completato."
+        },
+        "minutesStudied": {
+          "type": "number",
+          "description": "Minuti di studio accumulati su questo modulo."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ultimo aggiornamento modulo."
+        }
+      },
+      "required": [
+        "userId",
+        "lessonId",
+        "completedSections",
+        "quizBestScore",
+        "quizAttempts",
+        "xpEarned",
+        "completed",
+        "minutesStudied",
+        "updatedAt"
+      ]
+    },
+    "LessonNote": {
+      "title": "LessonNote",
+      "description": "Appunti personali in formato Markdown salvati dallo studente per una specifica lezione.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del proprietario."
+        },
+        "lessonId": {
+          "type": "string",
+          "pattern": "^lesson-(0[1-9]|1[0-2])$",
+          "maxLength": 20,
+          "description": "Identificativo del modulo (lesson-01 ... lesson-12)."
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000,
+          "description": "Testo degli appunti personali in formato Markdown."
+        },
+        "updatedAtMs": {
+          "type": "number",
+          "description": "Timestamp Unix in millisecondi dell'ultimo salvataggio."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server dell'ultimo aggiornamento."
+        }
+      },
+      "required": [
+        "userId",
+        "lessonId",
+        "content",
+        "updatedAtMs",
+        "updatedAt"
+      ]
+    },
+    "QuizAttempt": {
+      "title": "QuizAttempt",
+      "description": "Singolo tentativo di quiz (modulo, ripasso veloce o simulazione esame) per il grafico storico dei punteggi.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del proprietario."
+        },
+        "attemptId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificativo univoco del tentativo."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["lesson", "review", "exam"],
+          "description": "Tipologia della prova (modulo, ripasso veloce o simulazione esame)."
+        },
+        "lessonId": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "ID del modulo (lesson-01..12) oppure 'all' per prove multi-modulo."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Etichetta breve leggibile per il grafico."
+        },
+        "scorePercent": {
+          "type": "number",
+          "description": "Punteggio percentuale ottenuto (0-100)."
+        },
+        "correctCount": {
+          "type": "number",
+          "description": "Numero di risposte corrette."
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "Numero totale di domande del tentativo."
+        },
+        "recordedAtMs": {
+          "type": "number",
+          "description": "Timestamp Unix in millisecondi del completamento."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server di creazione."
+        }
+      },
+      "required": [
+        "userId",
+        "attemptId",
+        "kind",
+        "lessonId",
+        "label",
+        "scorePercent",
+        "correctCount",
+        "totalQuestions",
+        "recordedAtMs",
+        "createdAt"
+      ]
+    },
+    "StudyLog": {
+      "title": "StudyLog",
+      "description": "Registro giornaliero dei minuti studiati e dei moduli consultati.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del proprietario."
+        },
+        "dateKey": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "maxLength": 10,
+          "description": "Chiave data YYYY-MM-DD."
+        },
+        "minutesStudied": {
+          "type": "number",
+          "description": "Minuti totali studiati nella giornata."
+        },
+        "lessonsTouched": {
+          "type": "array",
+          "description": "Elenco dei moduli aperti nella giornata."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ultimo aggiornamento registro."
+        }
+      },
+      "required": [
+        "userId",
+        "dateKey",
+        "minutesStudied",
+        "lessonsTouched",
+        "updatedAt"
+      ]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Voce opzionale senza dati personali sensibili per la bacheca multiutente.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID proprietario."
+        },
+        "nickname": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Nome visualizzato in bacheca."
+        },
+        "xp": {
+          "type": "number",
+          "description": "XP totali."
+        },
+        "rankLevel": {
+          "type": "number",
+          "description": "Livello grado raggiunto (1-5)."
+        },
+        "completedLessonsCount": {
+          "type": "number",
+          "description": "Numero moduli superati."
+        },
+        "badgesCount": {
+          "type": "number",
+          "description": "Numero distintivi sbloccati."
+        },
+        "studyGroupsCount": {
+          "type": "number",
+          "description": "Numero di gruppi di studio attivi a cui partecipa lo studente."
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Visibilità pubblica opt-in."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp aggiornamento."
+        }
+      },
+      "required": [
+        "userId",
+        "nickname",
+        "xp",
+        "rankLevel",
+        "completedLessonsCount",
+        "badgesCount",
+        "isPublic",
+        "updatedAt"
+      ]
+    },
+    "FcmDeviceToken": {
+      "title": "FcmDeviceToken",
+      "description": "Dispositivo registrato su Firebase Cloud Messaging con il relativo programma di notifiche push.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID proprietario."
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificativo del dispositivo/browser registrato."
+        },
+        "token": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 1024,
+          "description": "Token di registrazione FCM del dispositivo."
+        },
+        "deviceLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Descrizione leggibile del browser o dispositivo."
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Fuso orario IANA del dispositivo."
+        },
+        "reminderEnabled": {
+          "type": "boolean",
+          "description": "Stato attivazione promemoria."
+        },
+        "reminderTimes": {
+          "type": "array",
+          "description": "Orari giornalieri di consegna notifiche push (HH:MM)."
+        },
+        "reminderDays": {
+          "type": "array",
+          "description": "Giorni della settimana attivi."
+        },
+        "reminderMessage": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Testo personalizzato del promemoria."
+        },
+        "updatedAtMs": {
+          "type": "number",
+          "description": "Timestamp Unix in millisecondi."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server di aggiornamento."
+        }
+      },
+      "required": [
+        "userId",
+        "deviceId",
+        "token",
+        "deviceLabel",
+        "timezone",
+        "reminderEnabled",
+        "reminderTimes",
+        "reminderDays",
+        "reminderMessage",
+        "updatedAtMs",
+        "updatedAt"
+      ]
+    },
+    "StudyGroup": {
+      "title": "StudyGroup",
+      "description": "Gruppo di studio condiviso tra amici scout o studenti per confrontare l'avanzamento nei 12 moduli e le statistiche dei quiz.",
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificativo univoco del gruppo di studio."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Nome del gruppo di studio."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Breve descrizione del gruppo."
+        },
+        "inviteCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{6,10}$",
+          "minLength": 6,
+          "maxLength": 10,
+          "description": "Codice invito univoco per unirsi al gruppo."
+        },
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del fondatore del gruppo."
+        },
+        "ownerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Nickname del fondatore del gruppo."
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "Elenco limitato (massimo 30) degli UID dei membri del gruppo."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp creazione gruppo."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ultimo aggiornamento gruppo."
+        }
+      },
+      "required": [
+        "groupId",
+        "name",
+        "description",
+        "inviteCode",
+        "ownerId",
+        "ownerName",
+        "memberIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StudyGroupInvite": {
+      "title": "StudyGroupInvite",
+      "description": "Indice privato per codice invito che collega il codice al gruppo senza esporre liste pubbliche.",
+      "type": "object",
+      "properties": {
+        "inviteCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{6,10}$",
+          "minLength": 6,
+          "maxLength": 10,
+          "description": "Codice invito maiuscolo alfanumerico."
+        },
+        "groupId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "ID del gruppo collegato."
+        },
+        "groupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Nome del gruppo collegato."
+        },
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del fondatore del gruppo."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp creazione invito."
+        }
+      },
+      "required": [
+        "inviteCode",
+        "groupId",
+        "groupName",
+        "ownerId",
+        "createdAt"
+      ]
+    },
+    "StudyGroupMember": {
+      "title": "StudyGroupMember",
+      "description": "Istantanea sincronizzata dei progressi sui 12 moduli e delle statistiche quiz di un membro del gruppo (senza dati PII).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID del membro."
+        },
+        "groupId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "ID del gruppo."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Nickname dello studente."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "member"],
+          "description": "Ruolo nel gruppo."
+        },
+        "xp": {
+          "type": "number",
+          "description": "XP totali."
+        },
+        "rankLevel": {
+          "type": "number",
+          "description": "Livello grado (1-5)."
+        },
+        "streakCount": {
+          "type": "number",
+          "description": "Serie quotidiana in giorni."
+        },
+        "completedLessons": {
+          "type": "array",
+          "description": "Lista dei moduli completati (lesson-01 ... lesson-12)."
+        },
+        "moduleScores": {
+          "type": "array",
+          "description": "Miglior punteggio percentuale quiz per ciascuno dei 12 moduli (-1 se non ancora svolto)."
+        },
+        "avgQuizScore": {
+          "type": "number",
+          "description": "Media punteggio quiz sui moduli svolti (0-100)."
+        },
+        "totalQuizAttempts": {
+          "type": "number",
+          "description": "Numero totale di tentativi quiz."
+        },
+        "examBestScore": {
+          "type": "number",
+          "description": "Miglior punteggio nella simulazione esame da 30 domande (-1 se non svolta)."
+        },
+        "badgesCount": {
+          "type": "number",
+          "description": "Numero di distintivi sbloccati."
+        },
+        "totalMinutesStudied": {
+          "type": "number",
+          "description": "Minuti totali di studio accumulati nei 12 moduli."
+        },
+        "joinedAtMs": {
+          "type": "number",
+          "description": "Timestamp Unix di ingresso nel gruppo."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server di aggiornamento."
+        }
+      },
+      "required": [
+        "userId",
+        "groupId",
+        "displayName",
+        "role",
+        "xp",
+        "rankLevel",
+        "streakCount",
+        "completedLessons",
+        "moduleScores",
+        "avgQuizScore",
+        "totalQuizAttempts",
+        "examBestScore",
+        "badgesCount",
+        "totalMinutesStudied",
+        "joinedAtMs",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Documento privato del profilo utente sincronizzato tra dispositivi."
+    },
+    "/users/{userId}/lessonProgress/{lessonId}": {
+      "schema": { "$ref": "#/entities/LessonProgress" },
+      "description": "Avanzamento e punteggi quiz per singolo modulo dell'utente."
+    },
+    "/users/{userId}/lessonNotes/{lessonId}": {
+      "schema": { "$ref": "#/entities/LessonNote" },
+      "description": "Appunti personali in formato Markdown salvati per singolo modulo dall'utente."
+    },
+    "/users/{userId}/quizAttempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/QuizAttempt" },
+      "description": "Cronologia dei punteggi ottenuti nei quiz nel tempo."
+    },
+    "/users/{userId}/studyLogs/{dateKey}": {
+      "schema": { "$ref": "#/entities/StudyLog" },
+      "description": "Storico giornaliero dei minuti di studio."
+    },
+    "/users/{userId}/fcmTokens/{deviceId}": {
+      "schema": { "$ref": "#/entities/FcmDeviceToken" },
+      "description": "Token di registrazione Firebase Cloud Messaging e orari di notifica per dispositivo."
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Bacheca multiutente opt-in senza dati PII."
+    },
+    "/studyGroups/{groupId}": {
+      "schema": { "$ref": "#/entities/StudyGroup" },
+      "description": "Gruppi di studio collaborativi tra scout e studenti."
+    },
+    "/studyGroups/{groupId}/members/{userId}": {
+      "schema": { "$ref": "#/entities/StudyGroupMember" },
+      "description": "Statistiche modulo per modulo e punteggi quiz dei membri del gruppo."
+    },
+    "/studyGroupInvites/{inviteCode}": {
+      "schema": { "$ref": "#/entities/StudyGroupInvite" },
+      "description": "Lookup diretto tramite codice invito per entrare in un gruppo di studio."
+    }
+  }
+}

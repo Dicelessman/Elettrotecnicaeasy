@@ -1,0 +1,974 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'dailyGoalMinutes',
+          'theme',
+          'exampleDomain',
+          'shareInLeaderboard',
+          'focusMode',
+          'soundEffectsEnabled',
+          'hapticFeedbackEnabled',
+          'xp',
+          'streakCount',
+          'lastStudyDate',
+          'todayDateKey',
+          'todayMinutesStudied',
+          'unlockedBadges',
+          'weeklyWeekKey',
+          'weeklyCompletedLessons',
+          'reminderEnabled',
+          'fcmEnabled',
+          'reminderTime',
+          'reminderTimes',
+          'reminderTimezone',
+          'reminderDays',
+          'reminderMessage',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'dailyGoalMinutes',
+          'theme',
+          'exampleDomain',
+          'shareInLeaderboard',
+          'focusMode',
+          'soundEffectsEnabled',
+          'hapticFeedbackEnabled',
+          'xp',
+          'streakCount',
+          'lastStudyDate',
+          'todayDateKey',
+          'todayMinutesStudied',
+          'unlockedBadges',
+          'weeklyWeekKey',
+          'weeklyCompletedLessons',
+          'reminderEnabled',
+          'fcmEnabled',
+          'reminderTime',
+          'reminderTimes',
+          'reminderTimezone',
+          'reminderDays',
+          'reminderMessage',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && data.uid.size() > 0
+        && data.uid.size() <= 128
+        && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 100
+        && data.dailyGoalMinutes is int
+        && data.dailyGoalMinutes in [5, 15, 30]
+        && data.theme is string
+        && data.theme in ['light', 'dark']
+        && data.exampleDomain is string
+        && data.exampleDomain in ['scout', 'outdoor', 'casa']
+        && data.shareInLeaderboard is bool
+        && data.focusMode is bool
+        && data.soundEffectsEnabled is bool
+        && data.hapticFeedbackEnabled is bool
+        && data.xp is number
+        && data.xp >= 0
+        && data.xp <= 1000000
+        && data.streakCount is int
+        && data.streakCount >= 0
+        && data.streakCount <= 10000
+        && data.lastStudyDate is string
+        && data.lastStudyDate.size() <= 20
+        && (data.lastStudyDate == '' || data.lastStudyDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+        && data.todayDateKey is string
+        && data.todayDateKey.size() <= 20
+        && data.todayDateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.todayMinutesStudied is number
+        && data.todayMinutesStudied >= 0
+        && data.todayMinutesStudied <= 1440
+        && data.unlockedBadges is list
+        && data.unlockedBadges.size() <= 20
+        && data.unlockedBadges.hasOnly([
+          'badge-01', 'badge-02', 'badge-03', 'badge-04',
+          'badge-05', 'badge-06', 'badge-07', 'badge-08',
+          'badge-09', 'badge-10', 'badge-11', 'badge-12',
+          'wbadge-01', 'wbadge-02', 'wbadge-03', 'wbadge-04'
+        ])
+        && data.weeklyWeekKey is string
+        && data.weeklyWeekKey.size() <= 12
+        && (data.weeklyWeekKey == '' || data.weeklyWeekKey.matches('^[0-9]{4}-W[0-9]{2}$'))
+        && data.weeklyCompletedLessons is list
+        && data.weeklyCompletedLessons.size() <= 12
+        && data.weeklyCompletedLessons.hasOnly([
+          'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
+          'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+        ])
+        && data.reminderEnabled is bool
+        && data.fcmEnabled is bool
+        && data.reminderTime is string
+        && data.reminderTime.size() == 5
+        && data.reminderTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && data.reminderTimes is list
+        && data.reminderTimes.size() >= 1
+        && data.reminderTimes.size() <= 5
+        && data.reminderTimes[0] is string
+        && data.reminderTimes[0].size() == 5
+        && data.reminderTimes[0].matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && data.reminderTimezone is string
+        && data.reminderTimezone.size() >= 1
+        && data.reminderTimezone.size() <= 64
+        && data.reminderDays is list
+        && data.reminderDays.size() <= 7
+        && data.reminderDays.hasOnly(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+        && data.reminderMessage is string
+        && data.reminderMessage.size() <= 160
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLessonProgress(data, lessonId) {
+      return data.keys().hasAll([
+          'userId',
+          'lessonId',
+          'completedSections',
+          'quizBestScore',
+          'quizAttempts',
+          'xpEarned',
+          'completed',
+          'minutesStudied',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'lessonId',
+          'completedSections',
+          'quizBestScore',
+          'quizAttempts',
+          'xpEarned',
+          'completed',
+          'minutesStudied',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.lessonId is string
+        && data.lessonId == lessonId
+        && data.lessonId.size() <= 20
+        && data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$')
+        && data.completedSections is list
+        && data.completedSections.size() <= 10
+        && data.completedSections.hasOnly(['analogy', 'simulator', 'formula', 'quiz'])
+        && data.quizBestScore is number
+        && data.quizBestScore >= 0
+        && data.quizBestScore <= 100
+        && data.quizAttempts is int
+        && data.quizAttempts >= 0
+        && data.quizAttempts <= 10000
+        && data.xpEarned is number
+        && data.xpEarned >= 0
+        && data.xpEarned <= 5000
+        && data.completed is bool
+        && data.minutesStudied is number
+        && data.minutesStudied >= 0
+        && data.minutesStudied <= 10000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLessonNote(data, lessonId) {
+      return data.keys().hasAll([
+          'userId',
+          'lessonId',
+          'content',
+          'updatedAtMs',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'lessonId',
+          'content',
+          'updatedAtMs',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.lessonId is string
+        && data.lessonId == lessonId
+        && data.lessonId.size() <= 20
+        && data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$')
+        && data.content is string
+        && data.content.size() >= 1
+        && data.content.size() <= 10000
+        && data.updatedAtMs is int
+        && data.updatedAtMs >= 1700000000000
+        && data.updatedAtMs <= 4102444800000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQuizAttempt(data, attemptId) {
+      return data.keys().hasAll([
+          'userId',
+          'attemptId',
+          'kind',
+          'lessonId',
+          'label',
+          'scorePercent',
+          'correctCount',
+          'totalQuestions',
+          'recordedAtMs',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'attemptId',
+          'kind',
+          'lessonId',
+          'label',
+          'scorePercent',
+          'correctCount',
+          'totalQuestions',
+          'recordedAtMs',
+          'createdAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.attemptId is string
+        && data.attemptId == attemptId
+        && data.attemptId.size() > 0
+        && data.attemptId.size() <= 128
+        && data.attemptId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.kind is string
+        && data.kind in ['lesson', 'review', 'exam']
+        && data.lessonId is string
+        && data.lessonId.size() > 0
+        && data.lessonId.size() <= 20
+        && (data.lessonId == 'all' || data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$'))
+        && data.label is string
+        && data.label.size() >= 1
+        && data.label.size() <= 60
+        && data.scorePercent is number
+        && data.scorePercent >= 0
+        && data.scorePercent <= 100
+        && data.correctCount is int
+        && data.correctCount >= 0
+        && data.correctCount <= 30
+        && data.totalQuestions is int
+        && data.totalQuestions >= 1
+        && data.totalQuestions <= 30
+        && data.recordedAtMs is int
+        && data.recordedAtMs >= 1700000000000
+        && data.recordedAtMs <= 4102444800000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStudyLog(data, dateKey) {
+      return data.keys().hasAll([
+          'userId',
+          'dateKey',
+          'minutesStudied',
+          'lessonsTouched',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'dateKey',
+          'minutesStudied',
+          'lessonsTouched',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.dateKey is string
+        && data.dateKey == dateKey
+        && data.dateKey.size() == 10
+        && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.minutesStudied is number
+        && data.minutesStudied >= 0
+        && data.minutesStudied <= 1440
+        && data.lessonsTouched is list
+        && data.lessonsTouched.size() <= 12
+        && data.lessonsTouched.hasOnly([
+          'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
+          'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+        ])
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'nickname',
+          'xp',
+          'rankLevel',
+          'completedLessonsCount',
+          'badgesCount',
+          'isPublic',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'nickname',
+          'xp',
+          'rankLevel',
+          'completedLessonsCount',
+          'badgesCount',
+          'studyGroupsCount',
+          'isPublic',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId == userId
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.nickname is string
+        && data.nickname.size() >= 1
+        && data.nickname.size() <= 40
+        && data.xp is number
+        && data.xp >= 0
+        && data.xp <= 1000000
+        && data.rankLevel is int
+        && data.rankLevel >= 1
+        && data.rankLevel <= 5
+        && data.completedLessonsCount is int
+        && data.completedLessonsCount >= 0
+        && data.completedLessonsCount <= 12
+        && data.badgesCount is int
+        && data.badgesCount >= 0
+        && data.badgesCount <= 16
+        && (!('studyGroupsCount' in data) || (data.studyGroupsCount is int && data.studyGroupsCount >= 0 && data.studyGroupsCount <= 100))
+        && data.isPublic is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFcmDeviceToken(data, deviceId) {
+      return data.keys().hasAll([
+          'userId',
+          'deviceId',
+          'token',
+          'deviceLabel',
+          'timezone',
+          'reminderEnabled',
+          'reminderTimes',
+          'reminderDays',
+          'reminderMessage',
+          'updatedAtMs',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'deviceId',
+          'token',
+          'deviceLabel',
+          'timezone',
+          'reminderEnabled',
+          'reminderTimes',
+          'reminderDays',
+          'reminderMessage',
+          'updatedAtMs',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == request.auth.uid
+        && data.userId.size() > 0
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.deviceId is string
+        && data.deviceId == deviceId
+        && data.deviceId.size() > 0
+        && data.deviceId.size() <= 128
+        && data.deviceId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.token is string
+        && data.token.size() >= 20
+        && data.token.size() <= 1024
+        && data.deviceLabel is string
+        && data.deviceLabel.size() >= 1
+        && data.deviceLabel.size() <= 100
+        && data.timezone is string
+        && data.timezone.size() >= 1
+        && data.timezone.size() <= 64
+        && data.reminderEnabled is bool
+        && data.reminderTimes is list
+        && data.reminderTimes.size() >= 1
+        && data.reminderTimes.size() <= 5
+        && data.reminderTimes[0] is string
+        && data.reminderTimes[0].size() == 5
+        && data.reminderTimes[0].matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && data.reminderDays is list
+        && data.reminderDays.size() <= 7
+        && data.reminderDays.hasOnly(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+        && data.reminderMessage is string
+        && data.reminderMessage.size() <= 160
+        && data.updatedAtMs is int
+        && data.updatedAtMs >= 1700000000000
+        && data.updatedAtMs <= 4102444800000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInviteCode(code) {
+      return code is string
+        && code.size() >= 6
+        && code.size() <= 10
+        && code.matches('^[A-Z0-9]{6,10}$');
+    }
+
+    function isValidScoreCell(val) {
+      return val is int && val >= -1 && val <= 100;
+    }
+
+    function isValidModuleScores(scores) {
+      return scores is list
+        && scores.size() == 12
+        && isValidScoreCell(scores[0])
+        && isValidScoreCell(scores[1])
+        && isValidScoreCell(scores[2])
+        && isValidScoreCell(scores[3])
+        && isValidScoreCell(scores[4])
+        && isValidScoreCell(scores[5])
+        && isValidScoreCell(scores[6])
+        && isValidScoreCell(scores[7])
+        && isValidScoreCell(scores[8])
+        && isValidScoreCell(scores[9])
+        && isValidScoreCell(scores[10])
+        && isValidScoreCell(scores[11]);
+    }
+
+    function isValidStudyGroup(data, groupId) {
+      return data.keys().hasAll([
+          'groupId',
+          'name',
+          'description',
+          'inviteCode',
+          'ownerId',
+          'ownerName',
+          'memberIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'groupId',
+          'name',
+          'description',
+          'inviteCode',
+          'ownerId',
+          'ownerName',
+          'memberIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.groupId is string
+        && data.groupId == groupId
+        && isValidId(data.groupId)
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 60
+        && data.description is string
+        && data.description.size() <= 160
+        && isValidInviteCode(data.inviteCode)
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerName is string
+        && data.ownerName.size() >= 1
+        && data.ownerName.size() <= 100
+        && data.memberIds is list
+        && data.memberIds.size() >= 1
+        && data.memberIds.size() <= 30
+        && data.memberIds[0] is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudyGroupInvite(data, inviteCode) {
+      return data.keys().hasAll([
+          'inviteCode',
+          'groupId',
+          'groupName',
+          'ownerId',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'inviteCode',
+          'groupId',
+          'groupName',
+          'ownerId',
+          'createdAt'
+        ])
+        && isValidInviteCode(data.inviteCode)
+        && data.inviteCode == inviteCode
+        && data.groupId is string
+        && isValidId(data.groupId)
+        && data.groupName is string
+        && data.groupName.size() >= 1
+        && data.groupName.size() <= 60
+        && data.ownerId is string
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStudyGroupMember(data, groupId, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'groupId',
+          'displayName',
+          'role',
+          'xp',
+          'rankLevel',
+          'streakCount',
+          'completedLessons',
+          'moduleScores',
+          'avgQuizScore',
+          'totalQuizAttempts',
+          'examBestScore',
+          'badgesCount',
+          'totalMinutesStudied',
+          'joinedAtMs',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'groupId',
+          'displayName',
+          'role',
+          'xp',
+          'rankLevel',
+          'streakCount',
+          'completedLessons',
+          'moduleScores',
+          'avgQuizScore',
+          'totalQuizAttempts',
+          'examBestScore',
+          'badgesCount',
+          'totalMinutesStudied',
+          'joinedAtMs',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && isValidId(data.userId)
+        && data.groupId is string
+        && data.groupId == groupId
+        && isValidId(data.groupId)
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 100
+        && data.role is string
+        && data.role in ['owner', 'member']
+        && data.xp is number
+        && data.xp >= 0
+        && data.xp <= 1000000
+        && data.rankLevel is int
+        && data.rankLevel >= 1
+        && data.rankLevel <= 5
+        && data.streakCount is int
+        && data.streakCount >= 0
+        && data.streakCount <= 10000
+        && data.completedLessons is list
+        && data.completedLessons.size() <= 12
+        && data.completedLessons.hasOnly([
+          'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
+          'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+        ])
+        && isValidModuleScores(data.moduleScores)
+        && data.avgQuizScore is int
+        && data.avgQuizScore >= 0
+        && data.avgQuizScore <= 100
+        && data.totalQuizAttempts is int
+        && data.totalQuizAttempts >= 0
+        && data.totalQuizAttempts <= 100000
+        && data.examBestScore is int
+        && data.examBestScore >= -1
+        && data.examBestScore <= 100
+        && data.badgesCount is int
+        && data.badgesCount >= 0
+        && data.badgesCount <= 16
+        && data.totalMinutesStudied is int
+        && data.totalMinutesStudied >= 0
+        && data.totalMinutesStudied <= 100000
+        && data.joinedAtMs is int
+        && data.joinedAtMs >= 1700000000000
+        && data.joinedAtMs <= 4102444800000
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'dailyGoalMinutes', 'theme', 'exampleDomain', 'shareInLeaderboard',
+            'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'displayName', 'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'xp', 'streakCount', 'lastStudyDate', 'todayDateKey', 'todayMinutesStudied', 'unlockedBadges', 'weeklyWeekKey', 'weeklyCompletedLessons', 'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'reminderEnabled', 'fcmEnabled', 'reminderTime', 'reminderTimes', 'reminderTimezone', 'reminderDays', 'reminderMessage', 'updatedAt'
+          ])
+          || (!existing().keys().hasAll(['theme', 'weeklyWeekKey', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'fcmEnabled', 'reminderTimes', 'reminderTimezone']) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'theme', 'exampleDomain', 'shareInLeaderboard', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'weeklyWeekKey', 'weeklyCompletedLessons', 'fcmEnabled', 'reminderTimes', 'reminderTimezone', 'updatedAt'
+          ]))
+        );
+      allow delete: if false;
+
+      match /lessonProgress/{lessonId} {
+        allow get: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+        allow list: if isVerifiedUser()
+          && isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && isValidLessonProgress(incoming(), lessonId)
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && isValidLessonProgress(incoming(), lessonId)
+          && incoming().userId == existing().userId
+          && incoming().lessonId == existing().lessonId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'completedSections', 'quizBestScore', 'quizAttempts', 'xpEarned', 'completed', 'minutesStudied', 'updatedAt'
+          ]);
+        allow delete: if false;
+      }
+
+      match /lessonNotes/{lessonId} {
+        allow get: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+        allow list: if isVerifiedUser()
+          && isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && isValidLessonNote(incoming(), lessonId)
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && isValidLessonNote(incoming(), lessonId)
+          && incoming().userId == existing().userId
+          && incoming().lessonId == existing().lessonId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'content', 'updatedAtMs', 'updatedAt'
+          ]);
+        allow delete: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(lessonId)
+          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+      }
+
+      match /quizAttempts/{attemptId} {
+        allow get: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(attemptId);
+        allow list: if isVerifiedUser()
+          && isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(attemptId)
+          && isValidQuizAttempt(incoming(), attemptId)
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /studyLogs/{dateKey} {
+        allow get: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(dateKey)
+          && dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+        allow list: if isVerifiedUser()
+          && isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(dateKey)
+          && isValidStudyLog(incoming(), dateKey)
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(dateKey)
+          && isValidStudyLog(incoming(), dateKey)
+          && incoming().userId == existing().userId
+          && incoming().dateKey == existing().dateKey
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'minutesStudied', 'lessonsTouched', 'updatedAt'
+          ]);
+        allow delete: if false;
+      }
+
+      match /fcmTokens/{deviceId} {
+        allow get: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deviceId);
+        allow list: if isVerifiedUser()
+          && isOwner(userId)
+          && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deviceId)
+          && isValidFcmDeviceToken(incoming(), deviceId)
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deviceId)
+          && isValidFcmDeviceToken(incoming(), deviceId)
+          && incoming().userId == existing().userId
+          && incoming().deviceId == existing().deviceId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'token', 'deviceLabel', 'timezone', 'reminderEnabled', 'reminderTimes', 'reminderDays', 'reminderMessage', 'updatedAtMs', 'updatedAt'
+          ]);
+        allow delete: if isVerifiedUser()
+          && isOwner(userId)
+          && isValidId(userId)
+          && isValidId(deviceId);
+      }
+    }
+
+    match /leaderboard/{userId} {
+      allow get: if isVerifiedUser()
+        && isValidId(userId)
+        && (resource.data.isPublic == true || isOwner(userId));
+      allow list: if isVerifiedUser()
+        && resource.data.isPublic == true
+        && resource.data.xp >= 0;
+      allow create: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().updatedAt == request.time
+        && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().userId == existing().userId
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'nickname', 'xp', 'rankLevel', 'completedLessonsCount', 'badgesCount', 'studyGroupsCount', 'isPublic', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId);
+    }
+
+    match /studyGroupInvites/{inviteCode} {
+      allow get: if isVerifiedUser() && isValidInviteCode(inviteCode);
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isValidInviteCode(inviteCode)
+        && isValidStudyGroupInvite(incoming(), inviteCode)
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/studyGroups/$(incoming().groupId))
+        && getAfter(/databases/$(database)/documents/studyGroups/$(incoming().groupId)).data.inviteCode == inviteCode
+        && getAfter(/databases/$(database)/documents/studyGroups/$(incoming().groupId)).data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isVerifiedUser()
+        && isValidInviteCode(inviteCode)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /studyGroups/{groupId} {
+      allow get: if isVerifiedUser()
+        && isValidId(groupId)
+        && (request.auth.uid in resource.data.memberIds);
+      allow list: if isVerifiedUser()
+        && (request.auth.uid in resource.data.memberIds);
+      allow create: if isVerifiedUser()
+        && isValidId(groupId)
+        && isValidStudyGroup(incoming(), groupId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().memberIds.size() == 1
+        && incoming().memberIds[0] == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/studyGroupInvites/$(incoming().inviteCode))
+        && existsAfter(/databases/$(database)/documents/studyGroups/$(groupId)/members/$(request.auth.uid));
+      allow update: if isVerifiedUser()
+        && isValidId(groupId)
+        && isValidStudyGroup(incoming(), groupId)
+        && incoming().groupId == existing().groupId
+        && incoming().inviteCode == existing().inviteCode
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'updatedAt'])
+          )
+          || (
+            !(request.auth.uid in existing().memberIds)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])
+            && incoming().memberIds.hasAll(existing().memberIds)
+            && (request.auth.uid in incoming().memberIds)
+            && incoming().memberIds.size() == existing().memberIds.size() + 1
+            && incoming().memberIds.size() <= 30
+            && existsAfter(/databases/$(database)/documents/studyGroups/$(groupId)/members/$(request.auth.uid))
+          )
+          || (
+            (request.auth.uid in existing().memberIds)
+            && existing().ownerId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])
+            && !(request.auth.uid in incoming().memberIds)
+            && existing().memberIds.hasAll(incoming().memberIds)
+            && incoming().memberIds.size() == existing().memberIds.size() - 1
+          )
+          || (
+            existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])
+            && (existing().ownerId in incoming().memberIds)
+            && existing().memberIds.hasAll(incoming().memberIds)
+            && incoming().memberIds.size() < existing().memberIds.size()
+          )
+        );
+      allow delete: if isVerifiedUser()
+        && isValidId(groupId)
+        && existing().ownerId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow get: if isVerifiedUser()
+          && isValidId(groupId)
+          && isValidId(memberId)
+          && (
+            isOwner(memberId)
+            || (request.auth.uid in get(/databases/$(database)/documents/studyGroups/$(groupId)).data.memberIds)
+          );
+        allow list: if false;
+        allow create: if isVerifiedUser()
+          && isOwner(memberId)
+          && isValidId(groupId)
+          && isValidId(memberId)
+          && isValidStudyGroupMember(incoming(), groupId, memberId)
+          && incoming().updatedAt == request.time
+          && (request.auth.uid in getAfter(/databases/$(database)/documents/studyGroups/$(groupId)).data.memberIds)
+          && (
+            incoming().role == 'member'
+            || (
+              incoming().role == 'owner'
+              && getAfter(/databases/$(database)/documents/studyGroups/$(groupId)).data.ownerId == request.auth.uid
+            )
+          );
+        allow update: if isVerifiedUser()
+          && isOwner(memberId)
+          && isValidId(groupId)
+          && isValidId(memberId)
+          && isValidStudyGroupMember(incoming(), groupId, memberId)
+          && incoming().userId == existing().userId
+          && incoming().groupId == existing().groupId
+          && incoming().role == existing().role
+          && incoming().joinedAtMs == existing().joinedAtMs
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'xp', 'rankLevel', 'streakCount', 'completedLessons',
+            'moduleScores', 'avgQuizScore', 'totalQuizAttempts', 'examBestScore',
+            'badgesCount', 'totalMinutesStudied', 'updatedAt'
+          ])
+          && (request.auth.uid in get(/databases/$(database)/documents/studyGroups/$(groupId)).data.memberIds);
+        allow delete: if isVerifiedUser()
+          && isValidId(groupId)
+          && isValidId(memberId)
+          && (
+            isOwner(memberId)
+            || get(/databases/$(database)/documents/studyGroups/$(groupId)).data.ownerId == request.auth.uid
+          );
+      }
+    }
+  }
+}

@@ -284,7 +284,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
               Studia in squadriglia o con i tuoi compagni di corso
             </h1>
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-              Crea un gruppo privato con codice invito per confrontare in tempo reale l&apos;avanzamento nei 12 moduli, i punteggi dei quiz e la simulazione esame con altri scout o studenti.
+              Crea un gruppo privato con codice invito per confrontare in tempo reale l&apos;avanzamento nei {LESSONS.length} moduli, i punteggi dei quiz e la simulazione esame con altri scout o studenti.
             </p>
           </div>
           <div className="shrink-0">
@@ -349,7 +349,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
         <div className="text-xs font-medium text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2">
           <span>Gruppi di Studio</span>
           <span aria-hidden="true">·</span>
-          <span>12 Moduli &amp; Statistiche Quiz</span>
+          <span>{LESSONS.length} Moduli &amp; Statistiche Quiz</span>
           <span aria-hidden="true">·</span>
           <span>Profilo: {profile.displayName}</span>
         </div>
@@ -357,7 +357,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
           Confronta i progressi con amici scout e studenti
         </h1>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Crea un gruppo per la tua squadriglia o classe oppure inserisci un codice invito. Ogni gruppo condivide solo nickname, stato dei 12 moduli, punteggi quiz, XP e serie (nessun dato email esposto).
+          Crea un gruppo per la tua squadriglia o classe oppure inserisci un codice invito. Ogni gruppo condivide solo nickname, stato dei {LESSONS.length} moduli, punteggi quiz, XP e serie (nessun dato email esposto).
         </p>
       </section>
 
@@ -829,16 +829,16 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
                 </div>
               </section>
 
-              {/* 12-Module Comparison Matrix */}
+              {/* 13-Module Comparison Matrix */}
               <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
                 <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                      <span>Confronto Avanzamento nei 12 Moduli</span>
+                      <span>Confronto Avanzamento nei {LESSONS.length} Moduli</span>
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Ogni cella mostra il completamento e il miglior punteggio nel quiz del singolo modulo. Clicca su M01–M12 per aprire la lezione.
+                      Ogni cella mostra il completamento e il miglior punteggio nel quiz del singolo modulo. Clicca su M01–M{String(LESSONS.length).padStart(2, '0')} per aprire la lezione.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
@@ -932,7 +932,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
                         <span>Confronto Visivo: Moduli Completati vs Media Quiz</span>
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Percentuale di completamento dei 12 moduli affiancata alla media dei punteggi nei quiz di ogni partecipante.
+                        Percentuale di completamento dei {LESSONS.length} moduli affiancata alla media dei punteggi nei quiz di ogni partecipante.
                       </p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
@@ -973,7 +973,7 @@ export const StudyGroupsView: React.FC<StudyGroupsViewProps> = ({ onOpenLesson }
                               | undefined;
                             if (name === 'Completamento Moduli (%)') {
                               return [
-                                `${value}% (${payload?.completedCount ?? 0}/12 moduli)`,
+                                `${value}% (${payload?.completedCount ?? 0}/${LESSONS.length} moduli)`,
                                 'Completamento Moduli',
                               ];
                             }

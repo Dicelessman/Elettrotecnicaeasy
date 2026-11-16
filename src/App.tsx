@@ -10,7 +10,9 @@ import { PreExamGlossaryView } from './components/PreExamGlossaryView';
 import { QuickReviewView } from './components/QuickReviewView';
 import { StudyGroupsView } from './components/StudyGroupsView';
 import { UserProfileView } from './components/UserProfileView';
+import { UtilitiesView } from './components/UtilitiesView';
 import { StudyProvider, useStudy } from './context/StudyContext';
+import { LESSONS } from './data/curriculum';
 import type { AppView, LessonId } from './types/radiolab';
 
 class AppErrorBoundary extends Component<
@@ -105,6 +107,7 @@ const AppShell: React.FC = () => {
             onOpenLesson={openLesson}
             onOpenQuickReview={() => navigate('review')}
             onOpenExamSimulation={() => navigate('exam')}
+            onOpenUtilities={() => navigate('utilities')}
             onOpenGroups={() => navigate('groups')}
             onOpenProfile={() => navigate('profile')}
           />
@@ -129,6 +132,7 @@ const AppShell: React.FC = () => {
           />
         )}
         {view === 'lab' && <LabSandboxView onOpenLesson={openLesson} />}
+        {view === 'utilities' && <UtilitiesView />}
         {view === 'glossary' && <PreExamGlossaryView onOpenLesson={openLesson} />}
         {view === 'groups' && <StudyGroupsView onOpenLesson={openLesson} />}
         {view === 'profile' && <UserProfileView onOpenLesson={openLesson} />}
@@ -137,7 +141,7 @@ const AppShell: React.FC = () => {
       {!isFocusReading && (
         <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 px-4 sm:px-6 text-xs text-slate-500 dark:text-slate-400">
           <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            <span>Radiotecnica easy · 12 Moduli + Guida Pre-Esame</span>
+            <span>Radiotecnica easy · {LESSONS.length} Moduli (incl. Morse CW) + Guida Pre-Esame</span>
             <span>Basato sul programma "Radiotecnica per Radioamatori"</span>
           </div>
         </footer>

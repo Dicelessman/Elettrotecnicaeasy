@@ -164,6 +164,17 @@ export const LESSON_CIRCUIT_BASIS: Record<LessonId, CircuitBasis> = {
       { symbol: 'GND · ANT', name: 'Riferimento e Uscita', role: 'Massa comune del circuito e terminale radiante verso lo spazio.' },
     ],
   },
+  'lesson-13': {
+    title: 'Basi di Circuiti: Tasto Telegrafico CW, Oscillatore Sidetone e TX',
+    summary:
+      'In telegrafia CW (Continuous Wave) il tasto telegrafico è un interruttore di precisione a molla: chiudendolo attivi sia l’oscillatore locale (Sidetone) per ascoltare il tuo ritmo in cuffia, sia la portante radio verso il filtro passa-basso e l’antenna.',
+    diagramId: 'lesson-13',
+    symbols: [
+      { symbol: '─┴─', name: 'Tasto Telegrafico (Key)', role: 'Interruttore rapido azionato a mano per generare punti (·) e linee (−).' },
+      { symbol: '🔊 680 Hz', name: 'Oscillatore Sidetone', role: 'Genera la nota audio locale in cuffia per controllare il ritmo di trasmissione.' },
+      { symbol: 'CW Filter', name: 'Filtro Stretto (~500 Hz)', role: 'Stringe la banda ricevuta attorno alla nota Morse eliminando quasi tutto il rumore.' },
+    ],
+  },
 };
 
 export const LESSON_DOMAIN_VARIANTS: Record<
@@ -552,6 +563,38 @@ export const LESSON_DOMAIN_VARIANTS: Record<
         'Metti alla prova tutte le competenze nel cruscotto interattivo e supera l’esame finale da 10 domande!',
       ],
       formulaExample: 'Un apparecchio a 12 V da 24 W assorbe 2 A (I = P/V) con resistenza equivalente di 6 Ω (R = V/I).',
+    },
+  },
+  'lesson-13': {
+    scout: {
+      hook: 'Al campo Scout il Morse non è solo storia di Baden-Powell: una radio CW da 5 W (QRP) con una semplice antenna a filo può superare ostacoli e raggiungere centinaia di chilometri quando la voce non passa!',
+      analogyTitle: 'Fischietto, torcia notturna e tamburo di squadriglia',
+      analogySteps: [
+        'Imparare il Morse contando "un punto e una linea" è lento: impara invece la melodia di ogni lettera (Metodo Fonico: A = di-DAH, K = DAH-di-DAH) come un ritmo di fischietto.',
+        'Con il Metodo Koch e Farnsworth ascolti subito i suoni veloci (18 WPM) ma con pause generose tra una lettera e l’altra, allenando l’orecchio d’istinto.',
+        'Con l’Albero Dicotomico (sinistra punto, destra linea) e il tasto tattile fissi ogni carattere sia con la vista che con la mano!',
+      ],
+      formulaExample: 'A 15 WPM secondo la parola standard PARIS, ogni punto dura esattamente 1200 / 15 = 80 ms, e ogni linea dura 240 ms.',
+    },
+    outdoor: {
+      hook: 'In cresta con nebbia fitta o vento forte, il segnale visivo della torcia (··· −−− ···) o una nota CW stretta in radio resta comprensibile anche con pochissima batteria e interferenze.',
+      analogyTitle: 'Segnali luminosi sul sentiero e boe nel buio',
+      analogySteps: [
+        'Le lettere più frequenti usano i suoni più brevi (E = 1 punto, T = 1 linea): per questo il Morse è il codice più efficiente mai inventato per emergenze e QRP.',
+        'La regola ritmica 1:3:7 (punto 1, linea 3, pausa lettera 3, pausa parola 7) vale sia per la radio, sia per una torcia frontale, sia per il fischietto alpino.',
+        'La nota CW occupa appena ~150–500 Hz rispetto ai 3.000 Hz della voce SSB: passa attraverso tempeste statiche (QRN) dove il microfono si perde.',
+      ],
+      formulaExample: 'Un segnale di soccorso SOS (···−−−···) continuo equivale a 9 impulsi con pause interne di 1 unità e dura meno di 2 secondi a 15 WPM.',
+    },
+    casa: {
+      hook: 'Ogni telecomando, fibra ottica o collegamento digitale ragiona a impulsi brevi e lunghi proprio come il Morse (0/1 temporizzati). Qui impari il Codice Morse con tre tecniche scientifiche moderne!',
+      analogyTitle: 'La batteria musicale invece dell’alfabeto visivo',
+      analogySteps: [
+        'Non leggere mai i punti come pallini su carta: ascoltali come un ritmo musicale ("di-DAH" = lettera A) usando il metodo fonico-ritmico.',
+        'Il metodo Koch ti fa partire da sole 2 lettere (K e M) a velocità reale, mentre la spaziatura Farnsworth ti lascia respiro tra un carattere e il successivo.',
+        'In più puoi esplorare l’albero binario visivo (sinistra punto, destra linea) e allenare la memoria motoria col tasto virtuale!',
+      ],
+      formulaExample: 'Con ritmo 20 WPM ("PARIS"), la durata di riferimento di un punto è T_dit = 1200 / 20 = 60 ms.',
     },
   },
 };

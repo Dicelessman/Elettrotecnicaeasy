@@ -78,6 +78,10 @@ service cloud.firestore {
           'unlockedBadges',
           'weeklyWeekKey',
           'weeklyCompletedLessons',
+          'weeklyXpWeekKey',
+          'weeklyXp',
+          'wrongQuestionIds',
+          'masteredFlashcards',
           'reminderEnabled',
           'fcmEnabled',
           'reminderTime',
@@ -126,19 +130,23 @@ service cloud.firestore {
         && data.unlockedBadges.hasOnly([
           'badge-01', 'badge-02', 'badge-03', 'badge-04',
           'badge-05', 'badge-06', 'badge-07', 'badge-08',
-          'badge-09', 'badge-10', 'badge-11', 'badge-12',
+          'badge-09', 'badge-10', 'badge-11', 'badge-12', 'badge-13',
           'wbadge-01', 'wbadge-02', 'wbadge-03', 'wbadge-04'
         ])
         && data.weeklyWeekKey is string
         && data.weeklyWeekKey.size() <= 12
         && (data.weeklyWeekKey == '' || data.weeklyWeekKey.matches('^[0-9]{4}-W[0-9]{2}$'))
         && data.weeklyCompletedLessons is list
-        && data.weeklyCompletedLessons.size() <= 12
+        && data.weeklyCompletedLessons.size() <= 13
         && data.weeklyCompletedLessons.hasOnly([
           'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
           'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
-          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12', 'lesson-13'
         ])
+        && (!('weeklyXpWeekKey' in data) || (data.weeklyXpWeekKey is string && data.weeklyXpWeekKey.size() <= 12 && (data.weeklyXpWeekKey == '' || data.weeklyXpWeekKey.matches('^[0-9]{4}-W[0-9]{2}$'))))
+        && (!('weeklyXp' in data) || (data.weeklyXp is number && data.weeklyXp >= 0 && data.weeklyXp <= 1000000))
+        && (!('wrongQuestionIds' in data) || (data.wrongQuestionIds is list && data.wrongQuestionIds.size() <= 150))
+        && (!('masteredFlashcards' in data) || (data.masteredFlashcards is list && data.masteredFlashcards.size() <= 300))
         && data.reminderEnabled is bool
         && data.fcmEnabled is bool
         && data.reminderTime is string
@@ -193,7 +201,7 @@ service cloud.firestore {
         && data.lessonId is string
         && data.lessonId == lessonId
         && data.lessonId.size() <= 20
-        && data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$')
+        && data.lessonId.matches('^lesson-(0[1-9]|1[0-3])$')
         && data.completedSections is list
         && data.completedSections.size() <= 10
         && data.completedSections.hasOnly(['analogy', 'simulator', 'formula', 'quiz'])
@@ -236,7 +244,7 @@ service cloud.firestore {
         && data.lessonId is string
         && data.lessonId == lessonId
         && data.lessonId.size() <= 20
-        && data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$')
+        && data.lessonId.matches('^lesson-(0[1-9]|1[0-3])$')
         && data.content is string
         && data.content.size() >= 1
         && data.content.size() <= 10000
@@ -286,7 +294,7 @@ service cloud.firestore {
         && data.lessonId is string
         && data.lessonId.size() > 0
         && data.lessonId.size() <= 20
-        && (data.lessonId == 'all' || data.lessonId.matches('^lesson-(0[1-9]|1[0-2])$'))
+        && (data.lessonId == 'all' || data.lessonId.matches('^lesson-(0[1-9]|1[0-3])$'))
         && data.label is string
         && data.label.size() >= 1
         && data.label.size() <= 60
@@ -333,11 +341,11 @@ service cloud.firestore {
         && data.minutesStudied >= 0
         && data.minutesStudied <= 1440
         && data.lessonsTouched is list
-        && data.lessonsTouched.size() <= 12
+        && data.lessonsTouched.size() <= 13
         && data.lessonsTouched.hasOnly([
           'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
           'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
-          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12', 'lesson-13'
         ])
         && data.updatedAt is timestamp;
     }
@@ -361,6 +369,8 @@ service cloud.firestore {
           'completedLessonsCount',
           'badgesCount',
           'studyGroupsCount',
+          'weeklyXpWeekKey',
+          'weeklyXp',
           'isPublic',
           'updatedAt'
         ])
@@ -381,11 +391,13 @@ service cloud.firestore {
         && data.rankLevel <= 5
         && data.completedLessonsCount is int
         && data.completedLessonsCount >= 0
-        && data.completedLessonsCount <= 12
+        && data.completedLessonsCount <= 13
         && data.badgesCount is int
         && data.badgesCount >= 0
-        && data.badgesCount <= 16
+        && data.badgesCount <= 17
         && (!('studyGroupsCount' in data) || (data.studyGroupsCount is int && data.studyGroupsCount >= 0 && data.studyGroupsCount <= 100))
+        && (!('weeklyXpWeekKey' in data) || (data.weeklyXpWeekKey is string && data.weeklyXpWeekKey.size() <= 12 && (data.weeklyXpWeekKey == '' || data.weeklyXpWeekKey.matches('^[0-9]{4}-W[0-9]{2}$'))))
+        && (!('weeklyXp' in data) || (data.weeklyXp is number && data.weeklyXp >= 0 && data.weeklyXp <= 1000000))
         && data.isPublic is bool
         && data.updatedAt is timestamp;
     }
@@ -467,7 +479,7 @@ service cloud.firestore {
 
     function isValidModuleScores(scores) {
       return scores is list
-        && scores.size() == 12
+        && (scores.size() == 12 || scores.size() == 13)
         && isValidScoreCell(scores[0])
         && isValidScoreCell(scores[1])
         && isValidScoreCell(scores[2])
@@ -479,7 +491,8 @@ service cloud.firestore {
         && isValidScoreCell(scores[8])
         && isValidScoreCell(scores[9])
         && isValidScoreCell(scores[10])
-        && isValidScoreCell(scores[11]);
+        && isValidScoreCell(scores[11])
+        && (scores.size() == 12 || isValidScoreCell(scores[12]));
     }
 
     function isValidStudyGroup(data, groupId) {
@@ -614,11 +627,11 @@ service cloud.firestore {
         && data.streakCount >= 0
         && data.streakCount <= 10000
         && data.completedLessons is list
-        && data.completedLessons.size() <= 12
+        && data.completedLessons.size() <= 13
         && data.completedLessons.hasOnly([
           'lesson-01', 'lesson-02', 'lesson-03', 'lesson-04',
           'lesson-05', 'lesson-06', 'lesson-07', 'lesson-08',
-          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12'
+          'lesson-09', 'lesson-10', 'lesson-11', 'lesson-12', 'lesson-13'
         ])
         && isValidModuleScores(data.moduleScores)
         && data.avgQuizScore is int
@@ -632,7 +645,7 @@ service cloud.firestore {
         && data.examBestScore <= 100
         && data.badgesCount is int
         && data.badgesCount >= 0
-        && data.badgesCount <= 16
+        && data.badgesCount <= 17
         && data.totalMinutesStudied is int
         && data.totalMinutesStudied >= 0
         && data.totalMinutesStudied <= 100000
@@ -664,13 +677,18 @@ service cloud.firestore {
             'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'displayName', 'updatedAt'
           ])
           || incoming().diff(existing()).affectedKeys().hasOnly([
-            'xp', 'streakCount', 'lastStudyDate', 'todayDateKey', 'todayMinutesStudied', 'unlockedBadges', 'weeklyWeekKey', 'weeklyCompletedLessons', 'updatedAt'
+            'xp', 'streakCount', 'lastStudyDate', 'todayDateKey', 'todayMinutesStudied',
+            'unlockedBadges', 'weeklyWeekKey', 'weeklyCompletedLessons',
+            'weeklyXpWeekKey', 'weeklyXp', 'wrongQuestionIds', 'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'wrongQuestionIds', 'masteredFlashcards', 'updatedAt'
           ])
           || incoming().diff(existing()).affectedKeys().hasOnly([
             'reminderEnabled', 'fcmEnabled', 'reminderTime', 'reminderTimes', 'reminderTimezone', 'reminderDays', 'reminderMessage', 'updatedAt'
           ])
-          || (!existing().keys().hasAll(['theme', 'weeklyWeekKey', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'fcmEnabled', 'reminderTimes', 'reminderTimezone']) && incoming().diff(existing()).affectedKeys().hasOnly([
-            'theme', 'exampleDomain', 'shareInLeaderboard', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'weeklyWeekKey', 'weeklyCompletedLessons', 'fcmEnabled', 'reminderTimes', 'reminderTimezone', 'updatedAt'
+          || (!existing().keys().hasAll(['theme', 'weeklyWeekKey', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'fcmEnabled', 'reminderTimes', 'reminderTimezone', 'weeklyXpWeekKey', 'weeklyXp', 'wrongQuestionIds', 'masteredFlashcards']) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'theme', 'exampleDomain', 'shareInLeaderboard', 'focusMode', 'soundEffectsEnabled', 'hapticFeedbackEnabled', 'weeklyWeekKey', 'weeklyCompletedLessons', 'weeklyXpWeekKey', 'weeklyXp', 'wrongQuestionIds', 'masteredFlashcards', 'fcmEnabled', 'reminderTimes', 'reminderTimezone', 'updatedAt'
           ]))
         );
       allow delete: if false;
@@ -680,7 +698,7 @@ service cloud.firestore {
           && isOwner(userId)
           && isValidId(userId)
           && isValidId(lessonId)
-          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+          && lessonId.matches('^lesson-(0[1-9]|1[0-3])$');
         allow list: if isVerifiedUser()
           && isOwner(userId)
           && resource.data.userId == request.auth.uid;
@@ -710,7 +728,7 @@ service cloud.firestore {
           && isOwner(userId)
           && isValidId(userId)
           && isValidId(lessonId)
-          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+          && lessonId.matches('^lesson-(0[1-9]|1[0-3])$');
         allow list: if isVerifiedUser()
           && isOwner(userId)
           && resource.data.userId == request.auth.uid;
@@ -736,7 +754,7 @@ service cloud.firestore {
           && isOwner(userId)
           && isValidId(userId)
           && isValidId(lessonId)
-          && lessonId.matches('^lesson-(0[1-9]|1[0-2])$');
+          && lessonId.matches('^lesson-(0[1-9]|1[0-3])$');
       }
 
       match /quizAttempts/{attemptId} {
@@ -841,7 +859,7 @@ service cloud.firestore {
         && incoming().userId == existing().userId
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
-          'nickname', 'xp', 'rankLevel', 'completedLessonsCount', 'badgesCount', 'studyGroupsCount', 'isPublic', 'updatedAt'
+          'nickname', 'xp', 'rankLevel', 'completedLessonsCount', 'badgesCount', 'studyGroupsCount', 'weeklyXpWeekKey', 'weeklyXp', 'isPublic', 'updatedAt'
         ]);
       allow delete: if isVerifiedUser()
         && isOwner(userId)

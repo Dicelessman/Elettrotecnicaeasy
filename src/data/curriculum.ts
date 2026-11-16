@@ -113,6 +113,12 @@ export const BADGES: BadgeDefinition[] = [
     description: 'Hai superato la prova finale basata sulla Guida pre-esame.',
     lessonId: 'lesson-12',
   },
+  {
+    id: 'badge-13',
+    title: 'Telegrafista Poliglotta CW',
+    description: 'Padroneggi il Codice Morse con metodo fonico, albero dicotomico, Farnsworth e metodo Koch.',
+    lessonId: 'lesson-13',
+  },
 ];
 
 type BaseLessonDefinition = Omit<LessonDefinition, 'domainVariants' | 'circuitBasis'>;
@@ -1262,6 +1268,59 @@ const BASE_LESSONS: BaseLessonDefinition[] = [
     ],
     badgeId: 'badge-12',
   },
+  {
+    id: 'lesson-13',
+    number: 13,
+    stage: 4,
+    stageLabel: 'Radio, Antenne e CW',
+    title: 'Codice Morse (CW): Metodi Multipli di Apprendimento',
+    shortTitle: 'Codice Morse CW',
+    subtitle: 'Ritmo fonico, Albero dicotomico visivo, Spaziatura Farnsworth e metodo Koch con tasto interattivo',
+    estimatedMinutes: 9,
+    sourceRef: 'Lezione 13 · Manuale CW & Campo Scout',
+    scoutHook:
+      'Quando la fonia non buca i disturbi o le batterie sono quasi scariche, un semplice segnale telegrafico (CW — Onda Continua) arriva dieci volte più lontano: con pochi milliwatt attraversi valli e continenti.',
+    analogyTitle: 'Il ritmo della musica batte sempre il conteggio visivo',
+    analogySteps: [
+      'Regola d’oro del ritmo (PARIS): una linea (dah) dura esattamente quanto tre punti (dit). Lo spazio dentro una lettera dura 1 dit, tra lettere 3 dit e tra parole 7 dit.',
+      'Errore classico del principiante: contare a mente "punto-linea-punto" e cercare su una tabella. Sopra le 5 parole al minuto il cervello si blocca!',
+      'Per sbloccarti esistono tre metodi complementari: il suono fonico-ritmico (Farnsworth), l’albero dicotomico (bivio sinistra/destra per decodificare in ricezione) e il metodo Koch (velocità reale fin da subito, due caratteri alla volta).',
+    ],
+    concepts: [
+      {
+        title: '1. Metodo Fonico-Ritmico & Farnsworth',
+        body: 'Non memorizzare pallini e trattini: impara ogni lettera come una melodia ("di-dah" = A, "dah-di-di-dit" = B). Con la tecnica Farnsworth i singoli caratteri suonano veloci (es. 18 WPM) così l’orecchio coglie subito il suono intero, mentre aumenti le pause tra le lettere per darti tempo.',
+        tip: 'Quando premi il tasto o ascolti, pronuncia mentalmente "di" per il punto (breve) e "dah" per la linea (3× più lunga).',
+      },
+      {
+        title: '2. Albero Dicotomico (Bivio Visivo)',
+        body: 'Perfetto per decodificare al volo un faro luminoso o un bip sconosciuto: parti dalla radice in cima. Ogni Punto (·) scende a sinistra (E → I → S → H), ogni Linea (−) scende a destra (T → M → O). Bastano 4 bivi per raggiungere tutte le 26 lettere!',
+        tip: 'Ottimo strumento di orientamento visivo iniziale, da affiancare poi all’ascolto musicale per aumentare la velocità.',
+      },
+      {
+        title: '3. Metodo Koch & Pratica Tattile con il Tasto',
+        body: 'Inventato da Ludwig Koch: inizi con soli due caratteri (K e M) a velocità reale (15–20 WPM) senza mai rallentare. Solo quando raggiungi il 90% di accuratezza all’ascolto aggiungi la lettera successiva (R, S, U, A...). Allenare la mano sul tasto consolida la memoria muscolare.',
+        tip: 'In radiotecnica il CW occupa appena 150–500 Hz di banda rispetto ai 2.700 Hz della SSB: per questo offre un guadagno SNR straordinario.',
+      },
+    ],
+    simulatorId: 'morse-cw',
+    simulatorTitle: 'Laboratorio Morse Multi-Metodo (Audio, Albero & Tasto)',
+    simulatorChallenge:
+      'Esplora tutte e 3 le schede didattiche (Fonico & Farnsworth, Albero Dicotomico, Koch & Tasto) e trasmetti almeno 3 caratteri validi sul tasto telegrafico.',
+    formula: {
+      expression: 'T_dit (ms) = 1200 / WPM',
+      title: 'Standard Temporale PARIS per Velocità CW',
+      plainReading: 'Dividendo 1200 per le parole al minuto (WPM) ottieni la durata esatta in millisecondi di un singolo punto (1 dit).',
+      variables: [
+        { symbol: 'T_dit', name: 'Durata del Punto', unit: 'ms (millisecondi)', meaning: 'Unità base (es. a 20 WPM un dit dura 60 ms)' },
+        { symbol: 'T_dah', name: 'Durata della Linea', unit: '3 × T_dit', meaning: 'Esattamente tre volte la durata di un punto' },
+        { symbol: 'WPM', name: 'Parole al Minuto', unit: 'parole/min', meaning: 'Basato sulla parola standard PARIS (50 unità elementari)' },
+      ],
+      scoutExample: 'A 15 WPM un punto (dit) dura 1200 / 15 = 80 ms e una linea (dah) dura 3 × 80 = 240 ms.',
+    },
+    quiz: LESSON_QUIZZES['lesson-13'] ?? [],
+    badgeId: 'badge-13',
+  },
 ];
 
 export const LESSONS: LessonDefinition[] = BASE_LESSONS.map((lesson) => ({
@@ -1414,5 +1473,30 @@ export const PRE_EXAM_GLOSSARY: GlossaryItem[] = [
     plainMeaning: 'Dipolo λ/2 = ~75 Ω (50 Ω a V-invertita 120°); Ground Plane λ/4 verticale con radiali a 45°; Yagi direttiva con riflettore più lungo e direttori più corti.',
     examTip: 'TX e RX devono avere la stessa polarizzazione (verticale o orizzontale) per non attenuare il segnale.',
     relatedLessonId: 'lesson-11',
+  },
+  {
+    id: 'g-morse-cw',
+    term: 'CW (Continuous Wave) e Timing PARIS',
+    category: 'Radio e Antenne',
+    formula: 'T_dit = 1200 / WPM (ms)   |   dah = 3 × dit',
+    plainMeaning: 'Trasmissione telegrafica ON/OFF di un’onda continua portante. Banda strettissima (~200–500 Hz) e altissima efficienza con basse potenze (QRP).',
+    examTip: 'Spazi standard: 1 dit tra elementi, 3 dit tra lettere, 7 dit tra parole.',
+    relatedLessonId: 'lesson-13',
+  },
+  {
+    id: 'g-farnsworth-koch',
+    term: 'Metodi Farnsworth, Koch e Albero Dicotomico',
+    category: 'Radio e Antenne',
+    plainMeaning: 'Tre approcci didattici per il Morse: Farnsworth (caratteri veloci + pause lunghe), Koch (velocità reale aggiungendo lettere al 90% di precisione) e Albero Dicotomico (bivio visivo punto-sinistra / linea-destra).',
+    examTip: 'Non contare i punti a vista: associa subito ogni carattere alla sua firma sonora "di-dah".',
+    relatedLessonId: 'lesson-13',
+  },
+  {
+    id: 'g-codici-q',
+    term: 'Codici Q e Alfabeto Fonetico NATO',
+    category: 'Radio e Antenne',
+    plainMeaning: 'Abbreviazioni internazionali a tre lettere (QTH posizione, QSL conferma, QRM disturbo umano, QRN disturbo naturale, QRP bassa potenza) e compitazione fonetica standard (Alfa, Bravo, Charlie...).',
+    examTip: 'Un codice Q seguito da "?" diventa domanda (es. QTH? = Qual è la tua posizione?).',
+    relatedLessonId: 'lesson-13',
   },
 ];

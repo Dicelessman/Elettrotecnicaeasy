@@ -9,9 +9,10 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
-import { SCOUT_RANKS } from '../data/curriculum';
+import { LESSONS, SCOUT_RANKS } from '../data/curriculum';
 import { useStudy } from '../context/StudyContext';
 import type { LeaderboardEntry } from '../types/radiolab';
+import { getIsoWeekKey } from '../utils/weeklyChallenges';
 
 interface GlobalLeaderboardCardProps {
   onOpenGroups: () => void;
@@ -19,9 +20,11 @@ interface GlobalLeaderboardCardProps {
 }
 
 type LeaderboardScope = 'groups' | 'all';
+type LeaderboardPeriod = 'allTime' | 'weekly';
 
 interface RankedEntry extends LeaderboardEntry {
   studyGroupsCount: number;
+  effectiveWeeklyXp: number;
 }
 
 export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
@@ -40,6 +43,9 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
   } = useStudy();
 
   const [scope, setScope] = useState<LeaderboardScope>('groups');
+  const [period, setPeriod] = useState<LeaderboardPeriod>('allTime');
+  const currentWeekKey = getIsoWeekKey();
+  const totalBadgeSlots = LESSONS.length + 4;
 
   const completedCount = useMemo(
     () => Object.values(lessonProgress).filter((lp) => lp.completed).length,
@@ -52,9 +58,12 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
 
     // 1. Seed from real /leaderboard documents
     for (const entry of leaderboardEntries) {
+      const effectiveWeeklyXp =
+        entry.weeklyXpWeekKey === currentWeekKey ? Math.max(0, entry.weeklyXp ?? 0) : 0;
       const normalized: RankedEntry = {
         ...entry,
         studyGroupsCount: Math.max(0, entry.studyGroupsCount ?? 0),
+        effectiveWeeklyXp,
       };
       allMap.set(entry.userId, normalized);
       if (normalized.studyGroupsCount > 0) {
@@ -116,6 +125,7 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
           ? Math.max(existing.badgesCount, snap.badgesCount)
           : snap.badgesCount,
         studyGroupsCount: Math.max(existing?.studyGroupsCount ?? 0, gSet.size),
+        effectiveWeeklyXp: existing?.effectiveWeeklyXp ?? 0,
         isPublic: true,
       };
       groupMap.set(uid, merged);
@@ -124,6 +134,8 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
 
     // 3. Reflect current signed-in user's freshest local XP/progress if in a group or opt-in
     if (user) {
+      const myWeeklyXp =
+        profile.weeklyXpWeekKey === currentWeekKey ? Math.max(0, Math.round(profile.weeklyXp)) : 0;
       const myLiveEntry: RankedEntry = {
         userId: user.uid,
         nickname: (profile.displayName.trim() || 'Radio Studente').slice(0, 40),
@@ -132,6 +144,9 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
         completedLessonsCount: completedCount,
         badgesCount: profile.unlockedBadges.length,
         studyGroupsCount: studyGroups.length,
+        weeklyXpWeekKey: currentWeekKey,
+        weeklyXp: myWeeklyXp,
+        effectiveWeeklyXp: myWeeklyXp,
         isPublic: profile.shareInLeaderboard || studyGroups.length > 0,
       };
 
@@ -144,13 +159,22 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
     }
 
     const sortEntries = (list: RankedEntry[]) =>
-      list.sort(
-        (a, b) =>
+      list.sort((a, b) => {
+        if (period === 'weekly') {
+          return (
+            b.effectiveWeeklyXp - a.effectiveWeeklyXp ||
+            b.xp - a.xp ||
+            b.completedLessonsCount - a.completedLessonsCount ||
+            a.nickname.localeCompare(b.nickname, 'it')
+          );
+        }
+        return (
           b.xp - a.xp ||
           b.completedLessonsCount - a.completedLessonsCount ||
           b.badgesCount - a.badgesCount ||
           a.nickname.localeCompare(b.nickname, 'it')
-      );
+        );
+      });
 
     return {
       groupRanking: sortEntries(Array.from(groupMap.values())),
@@ -162,24 +186,30 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
     user,
     profile.displayName,
     profile.xp,
+    profile.weeklyXpWeekKey,
+    profile.weeklyXp,
     profile.unlockedBadges.length,
     profile.shareInLeaderboard,
     currentRank.level,
     completedCount,
     studyGroups.length,
+    currentWeekKey,
+    period,
   ]);
 
   const activeRanking = scope === 'groups' ? groupRanking : allRanking;
   const topTen = activeRanking.slice(0, 10);
-  const topXp = Math.max(1, topTen[0]?.xp ?? 1);
+  const getShownXp = (entry: RankedEntry) =>
+    period === 'weekly' ? entry.effectiveWeeklyXp : entry.xp;
+  const topXp = Math.max(1, topTen[0] ? getShownXp(topTen[0]) : 1);
 
   const myIndex = user ? activeRanking.findIndex((e) => e.userId === user.uid) : -1;
   const myRankPosition = myIndex >= 0 ? myIndex + 1 : null;
   const myEntry = myIndex >= 0 ? activeRanking[myIndex] : null;
-  const tenthXp = topTen.length === 10 ? topTen[9].xp : null;
+  const tenthXp = topTen.length === 10 ? getShownXp(topTen[9]) : null;
   const xpToTopTen =
     myEntry && myRankPosition && myRankPosition > 10 && tenthXp !== null
-      ? Math.max(1, tenthXp - myEntry.xp + 1)
+      ? Math.max(1, tenthXp - getShownXp(myEntry) + 1)
       : null;
 
   const hasExtraPublicUsers = allRanking.length > groupRanking.length;
@@ -210,6 +240,41 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {user && (
+            <div
+              role="tablist"
+              aria-label="Periodo classifica"
+              className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-0.5 text-xs"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={period === 'allTime'}
+                onClick={() => setPeriod('allTime')}
+                className={`px-2.5 py-1.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                  period === 'allTime'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Assoluta
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={period === 'weekly'}
+                onClick={() => setPeriod('weekly')}
+                className={`px-2.5 py-1.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                  period === 'weekly'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Settimana ({currentWeekKey})
+              </button>
+            </div>
+          )}
+
           {user && hasExtraPublicUsers && (
             <div
               role="tablist"
@@ -268,7 +333,7 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
               Con il tuo account Google puoi entrare nei Gruppi di Studio, scalare la Classifica Globale per XP accumulati e confrontarti con gli altri scout e studenti senza esporre dati personali.
             </p>
             <div className="text-xs font-mono tabular-nums text-sky-800 dark:text-sky-300 pt-0.5">
-              Il tuo punteggio locale attuale: {profile.xp} XP · Liv. {currentRank.level} ({currentRank.title}) · {completedCount}/12 moduli
+              Il tuo punteggio locale attuale: {profile.xp} XP · Liv. {currentRank.level} ({currentRank.title}) · {completedCount}/{LESSONS.length} moduli
             </div>
           </div>
           <button
@@ -306,7 +371,8 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
             const isMe = entry.userId === user.uid;
             const rankDef =
               SCOUT_RANKS.find((r) => r.level === entry.rankLevel) ?? SCOUT_RANKS[0];
-            const barWidth = Math.max(6, Math.round((entry.xp / topXp) * 100));
+            const displayedXp = getShownXp(entry);
+            const barWidth = Math.max(6, Math.round((displayedXp / topXp) * 100));
 
             const podiumStyle =
               rankNum === 1
@@ -387,17 +453,17 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
                   <div className="flex items-center gap-3 text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
                     <span
                       className="inline-flex items-center gap-1"
-                      title="Moduli completati su 12"
+                      title={`Moduli completati su ${LESSONS.length}`}
                     >
                       <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                      {entry.completedLessonsCount}/12
+                      {entry.completedLessonsCount}/{LESSONS.length}
                     </span>
                     <span
                       className="inline-flex items-center gap-1"
-                      title="Distintivi sbloccati su 16"
+                      title={`Distintivi sbloccati su ${totalBadgeSlots}`}
                     >
                       <Award className="w-3.5 h-3.5 text-slate-400" />
-                      {entry.badgesCount}/16
+                      {entry.badgesCount}/{totalBadgeSlots}
                     </span>
                   </div>
 
@@ -414,8 +480,8 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <span className="text-sm font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400 text-right min-w-[68px]">
-                      {entry.xp} XP
+                    <span className="text-sm font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400 text-right min-w-[76px]">
+                      {displayedXp} XP{period === 'weekly' ? ' sett.' : ''}
                     </span>
                   </div>
                 </div>
@@ -440,7 +506,11 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
                   {activeRanking.length}
                 </span>{' '}
                 {scope === 'groups' ? 'partecipanti ai Gruppi di Studio' : 'studenti in classifica'}{' '}
-                con <span className="font-mono tabular-nums font-semibold">{myEntry.xp} XP</span>.
+                con{' '}
+                <span className="font-mono tabular-nums font-semibold">
+                  {getShownXp(myEntry)} XP{period === 'weekly' ? ' questa settimana' : ''}
+                </span>
+                .
               </p>
             ) : (
               <p className="text-slate-600 dark:text-slate-300">
@@ -448,7 +518,7 @@ export const GlobalLeaderboardCard: React.FC<GlobalLeaderboardCardProps> = ({
                 <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                   #{myRankPosition}
                 </span>{' '}
-                ({myEntry.xp} XP)
+                ({getShownXp(myEntry)} XP{period === 'weekly' ? ' sett.' : ''})
                 {xpToTopTen !== null && (
                   <>
                     {' '}

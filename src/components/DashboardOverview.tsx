@@ -12,8 +12,9 @@ import {
   Timer,
   Trophy,
   Users,
+  Wrench,
 } from 'lucide-react';
-import { LESSONS } from '../data/curriculum';
+import { BADGES, LESSONS } from '../data/curriculum';
 import { DOMAIN_OPTIONS } from '../data/domainContent';
 import { useStudy } from '../context/StudyContext';
 import type { DailyGoalMinutes, LessonId } from '../types/radiolab';
@@ -32,6 +33,7 @@ interface DashboardOverviewProps {
   onOpenLesson: (lessonId: LessonId) => void;
   onOpenQuickReview: () => void;
   onOpenExamSimulation: () => void;
+  onOpenUtilities: () => void;
   onOpenGroups: () => void;
   onOpenProfile: () => void;
 }
@@ -63,6 +65,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   onOpenLesson,
   onOpenQuickReview,
   onOpenExamSimulation,
+  onOpenUtilities,
   onOpenGroups,
   onOpenProfile,
 }) => {
@@ -113,7 +116,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2">
             <span>Radiotecnica easy</span>
             <span aria-hidden="true">·</span>
-            <span>12 Moduli Pratici</span>
+            <span>{LESSONS.length} Moduli Pratici</span>
             <span aria-hidden="true">·</span>
             <button
               type="button"
@@ -129,7 +132,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             {completedCount === 0
               ? 'Parti da zero e padroneggia la radio in pochi minuti al giorno'
               : completedCount === LESSONS.length
-                ? 'Hai completato tutti i 12 moduli del manuale!'
+                ? `Hai completato tutti i ${LESSONS.length} moduli del manuale!`
                 : `Prossima tappa: Modulo ${String(nextLesson.number).padStart(2, '0')} — ${nextLesson.shortTitle}`}
           </h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -284,7 +287,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               {completedCount} / {LESSONS.length} moduli
             </div>
             <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 mt-1">
-              {profile.unlockedBadges.length} / 16 distintivi ({profile.unlockedBadges.filter((b) => b.startsWith('wbadge-')).length}/4 settimanali)
+              {profile.unlockedBadges.length} / {BADGES.length + 4} distintivi ({profile.unlockedBadges.filter((b) => b.startsWith('wbadge-')).length}/4 settimanali)
             </p>
           </div>
           <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -311,12 +314,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <div className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
                 {completedCount > 0
                   ? `${reviewPoolSize} domande disponibili da ${completedCount} ${completedCount === 1 ? 'modulo completato' : 'moduli completati'}`
-                  : 'Si sblocca dopo il primo modulo completato'}
+                  : 'Si sblocca dopo il primo modulo completato · Flashcard subito attive'}
+                {profile.wrongQuestionIds.length > 0 && (
+                  <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                    {' '}
+                    · {profile.wrongQuestionIds.length} errori da recuperare
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 pt-0.5">
                 {completedCount > 0
-                  ? 'Tieni allenata la memoria in 2 minuti con 5 domande estratte a caso dagli argomenti già superati.'
-                  : 'Supera il quiz finale del primo modulo per iniziare i tuoi ripassi lampo da 5 domande casuali.'}
+                  ? 'Tieni allenata la memoria in 2 minuti con 5 domande estratte a caso, calcoli dinamici, recupero errori e flashcard.'
+                  : 'Supera il quiz finale del primo modulo per sbloccare il ripasso casuale, oppure allenati già con le Flashcard.'}
               </p>
             </div>
           </div>
@@ -324,10 +333,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={completedCount > 0 ? onOpenQuickReview : () => onOpenLesson(nextLesson.id)}
+              onClick={onOpenQuickReview}
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <span>{completedCount > 0 ? 'Avvia Ripasso (5 domande)' : 'Completa Modulo 01'}</span>
+              <span>{completedCount > 0 ? 'Avvia Ripasso & Flashcard' : 'Apri Ripasso & Flashcard'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -344,7 +353,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 Simulazione Esame · 30 Domande
               </h2>
               <div className="text-xs font-mono tabular-nums text-amber-800 dark:text-amber-300">
-                Timer 30:00 · Soglia 70% (21/30) · Tutti i 12 moduli
+                Timer 30:00 · Soglia 70% (21/30) · Tutti i {LESSONS.length} moduli
               </div>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 pt-0.5">
                 Metti alla prova la tua preparazione globale con un esame completo estratto casualmente da tutto il programma, con punteggio finale e pagella per modulo.
@@ -365,29 +374,53 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </section>
 
-      {/* Gruppi di Studio: Confronto tra scout e studenti */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Users className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Gruppi di Studio · Confronta Moduli e Quiz
-            </h2>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-              {studyGroups.length > 0
-                ? `Partecipi a ${studyGroups.length} ${studyGroups.length === 1 ? 'gruppo attivo' : 'gruppi attivi'}. Confronta l’avanzamento nei 12 moduli e le statistiche quiz con i tuoi amici.`
-                : 'Crea un gruppo con codice invito per la tua squadriglia o classe e confronta i 12 moduli e i punteggi quiz in tempo reale.'}
-            </p>
+      {/* Utilità & Gruppi di Studio */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Wrench className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Utilità · Trainer Morse CW &amp; Calcolatori da Campo
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                Allenatore d&apos;ascolto Farnsworth, tasto CW interattivo, alfabeto NATO / codici Q e calcolatori per antenne, dBm e autonomia batteria.
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={onOpenUtilities}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <span>Apri Utilità</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onOpenGroups}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          <span>{studyGroups.length > 0 ? 'Apri Gruppi di Studio' : 'Crea o Unisciti'}</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Users className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Gruppi di Studio · Confronta Moduli e Quiz
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                {studyGroups.length > 0
+                  ? `Partecipi a ${studyGroups.length} ${studyGroups.length === 1 ? 'gruppo attivo' : 'gruppi attivi'}. Confronta l’avanzamento nei ${LESSONS.length} moduli e le statistiche quiz con i tuoi amici.`
+                  : `Crea un gruppo con codice invito per la tua squadriglia o classe e confronta i ${LESSONS.length} moduli e i punteggi quiz in tempo reale.`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenGroups}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <span>{studyGroups.length > 0 ? 'Apri Gruppi di Studio' : 'Crea o Unisciti'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </section>
 
       {/* Classifica Globale · Top 10 Gruppi di Studio */}

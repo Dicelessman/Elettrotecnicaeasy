@@ -4,11 +4,13 @@ import {
   Award,
   Bell,
   BellRing,
+  BookMarked,
   Calendar,
   CheckCircle2,
   Clock,
   Cloud,
   Compass,
+  Download,
   EyeOff,
   Flame,
   Globe,
@@ -16,6 +18,7 @@ import {
   Moon,
   NotebookPen,
   Plus,
+  Printer,
   RefreshCw,
   Smartphone,
   Sun,
@@ -45,7 +48,10 @@ import {
 } from '../utils/fcm';
 import { WEEKLY_BADGES } from '../utils/weeklyChallenges';
 import { isVibrationSupported, triggerGamificationFeedback } from '../utils/feedbackAudio';
+import { SMART_GLOSSARY_ENTRIES } from '../utils/smartGlossary';
+import { downloadStudyNotebookMarkdown } from '../utils/studyNotebookExport';
 import { BadgeGraphic } from './BadgeGraphic';
+import { PrintableNotebookModal } from './PrintableNotebookModal';
 import { PWAInstallButton } from './PWAInstallButton';
 import { UserAnalyticsSection } from './UserAnalyticsSection';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -76,6 +82,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
 
   const prefersReducedMotion = useReducedMotion();
   const { isInstalled } = usePWAInstall();
+  const [notebookOpen, setNotebookOpen] = useState(false);
   const [swActive, setSwActive] = useState(
     () => typeof navigator !== 'undefined' && 'serviceWorker' in navigator && !!navigator.serviceWorker.controller
   );
@@ -582,7 +589,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
                   {isInstalled
-                    ? 'App installata in modalità standalone · I 12 moduli e i quiz funzionano anche senza rete.'
+                    ? `App installata in modalità standalone · I ${LESSONS.length} moduli e i quiz funzionano anche senza rete.`
                     : swActive
                       ? 'Cache offline attiva: puoi consultare i moduli, simulatori e quiz anche senza connessione internet.'
                       : 'Salva l’app sul dispositivo per studiare i moduli già caricati anche offline.'}
@@ -602,7 +609,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
                 Ambito Preferito per Esempi e Analogie
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Tutte le 12 lezioni adattano istantaneamente spiegazioni, analogie ed esempi pratici al contesto che senti più vicino.
+                Tutte le {LESSONS.length} lezioni adattano istantaneamente spiegazioni, analogie ed esempi pratici al contesto che senti più vicino.
               </p>
             </div>
           </div>
@@ -704,7 +711,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
               {attemptedQuizzes.length > 0 ? `${avgQuizScore}%` : '—'}
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              {attemptedQuizzes.length} {attemptedQuizzes.length === 1 ? 'modulo valutato' : 'moduli valutati'} (soglia 70%)
+              {attemptedQuizzes.length} {attemptedQuizzes.length === 1 ? 'modulo valutato' : 'moduli valutati'} ·{' '}
+              {profile.wrongQuestionIds.length} errori in ripasso
             </div>
           </div>
 
@@ -717,18 +725,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
               {profile.streakCount} {profile.streakCount === 1 ? 'giorno' : 'giorni'}
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-              Oggi: {profile.todayMinutesStudied} / {profile.dailyGoalMinutes} min
+              Oggi: {profile.todayMinutesStudied}/{profile.dailyGoalMinutes}m · Flashcard:{' '}
+              {profile.masteredFlashcards.length}/{SMART_GLOSSARY_ENTRIES.length}
             </div>
           </div>
         </div>
 
-        {/* 12 Graphic Badges + 4 Exclusive Weekly Badges Showcase */}
+        {/* Module Graphic Badges + 4 Exclusive Weekly Badges Showcase */}
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>
-                Bacheca Distintivi Grafici ({profile.unlockedBadges.filter((b) => b.startsWith('badge-')).length} / 12)
+                Bacheca Distintivi Grafici ({profile.unlockedBadges.filter((b) => b.startsWith('badge-')).length} / {BADGES.length})
               </span>
             </h3>
             <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -871,25 +880,43 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
       {/* 3.5 Recharts Analytics: Quiz Scores Over Time & Study Time per Module */}
       <UserAnalyticsSection />
 
-      {/* 3.8 Saved Personal Lesson Markdown Notes */}
+      {/* 3.8 Saved Personal Lesson Markdown Notes & Printable Notebook Export */}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex items-start gap-2.5">
             <NotebookPen className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-                I tuoi Appunti Personali delle Lezioni
+                Quaderno Appunti Personali &amp; Formulario Stampabile
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {user
-                  ? 'Note in formato Markdown sincronizzate nel tuo profilo Firebase.'
-                  : 'Note salvate in locale. Accedi con Google per sincronizzarle su Firebase.'}
+                  ? 'Note in formato Markdown sincronizzate nel tuo profilo Firebase. Esportale o stampale con il formulario pre-esame.'
+                  : 'Note salvate in locale. Esportale in Markdown o stampa il quaderno con tutte le formule.'}
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
-            {Object.keys(lessonNotes).length} / {LESSONS.length} moduli annotati
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400 mr-1">
+              {Object.keys(lessonNotes).length} / {LESSONS.length} moduli
+            </span>
+            <button
+              type="button"
+              onClick={() => downloadStudyNotebookMarkdown(profile, lessonNotes)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Scarica Markdown (.md)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setNotebookOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Anteprima &amp; Stampa / PDF</span>
+            </button>
+          </div>
         </div>
 
         {Object.keys(lessonNotes).length === 0 ? (
@@ -1392,10 +1419,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
                         Liv. {rankDef.level} · {rankDef.title}
                       </td>
                       <td className="py-2.5 pr-3 font-mono tabular-nums">
-                        {entry.completedLessonsCount}/12
+                        {entry.completedLessonsCount}/{LESSONS.length}
                       </td>
                       <td className="py-2.5 pr-3 font-mono tabular-nums">
-                        {entry.badgesCount}/16
+                        {entry.badgesCount}/{BADGES.length + WEEKLY_BADGES.length}
                       </td>
                       <td className="py-2.5 font-mono tabular-nums text-right text-sky-700 dark:text-sky-400">
                         {entry.xp}
@@ -1408,6 +1435,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
           </div>
         )}
       </section>
+
+      <PrintableNotebookModal
+        open={notebookOpen}
+        onClose={() => setNotebookOpen(false)}
+        profile={profile}
+        lessonNotes={lessonNotes}
+      />
     </div>
   );
 };

@@ -267,13 +267,13 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 dark:text-sky-400">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Estrazione automatica dai 12 moduli</span>
+              <span>Estrazione automatica dai {LESSONS.length} moduli</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-50">
               Glossario Intelligente e Scheda Esame
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl">
-              Raccoglie e organizza automaticamente tutti i termini tecnici, concetti chiave, simboli circuitali e grandezze estratte dalle 12 lezioni, con collegamenti incrociati tra moduli.
+              Raccoglie e organizza automaticamente tutti i termini tecnici, concetti chiave, simboli circuitali e grandezze estratte dalle {LESSONS.length} lezioni, con collegamenti incrociati tra moduli.
             </p>
           </div>
 
@@ -293,7 +293,7 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
               <div className="text-[10px] text-slate-500 dark:text-slate-400">Moduli</div>
               <div className="text-base font-bold font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                12
+                {LESSONS.length}
               </div>
             </div>
           </div>
@@ -403,7 +403,7 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
                 onClick={() => setModuleFilter('all')}
                 className="text-sky-700 dark:text-sky-400 font-semibold hover:underline cursor-pointer"
               >
-                Mostra tutti i 12 moduli
+                Mostra tutti i {LESSONS.length} moduli
               </button>
             )}
           </div>

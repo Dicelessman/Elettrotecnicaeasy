@@ -60,6 +60,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
     lessonNotes,
     markSectionCompleted,
     recordQuizResult,
+    recordQuestionOutcomes,
     touchLessonStudy,
     updateUserPreferences,
     setIsTrackingStudy,
@@ -131,7 +132,14 @@ export const LessonView: React.FC<LessonViewProps> = ({
     ).length;
     const score = Math.round((correctCount / total) * 100);
     setQuizSubmitted(true);
+    const wrongIds = lesson.quiz
+      .filter((q) => quizAnswers[q.id] !== q.correctIndex)
+      .map((q) => q.id);
+    const correctIds = lesson.quiz
+      .filter((q) => quizAnswers[q.id] === q.correctIndex)
+      .map((q) => q.id);
     const res = await recordQuizResult(lesson.id, score, correctCount, total);
+    void recordQuestionOutcomes(wrongIds, correctIds);
     const hasBadgeOrPromotion =
       Boolean(res.newlyUnlockedBadge) ||
       res.newlyUnlockedWeeklyBadges.length > 0 ||
@@ -193,7 +201,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
             {String(activeSessionSeconds % 60).padStart(2, '0')}
           </span>
           <span aria-hidden="true">·</span>
-          <span>Modulo {String(lesson.number).padStart(2, '0')} / 12</span>
+          <span>Modulo {String(lesson.number).padStart(2, '0')} / {LESSONS.length}</span>
           <button
             type="button"
             onClick={() => {

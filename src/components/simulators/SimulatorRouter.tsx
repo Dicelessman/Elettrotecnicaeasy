@@ -12,6 +12,7 @@ import { Lesson09DiodeTransistorSim } from './Lesson09DiodeTransistorSim';
 import { Lesson10ModulationLogicSim } from './Lesson10ModulationLogicSim';
 import { Lesson11AntennaSim } from './Lesson11AntennaSim';
 import { Lesson12PreExamChallengeSim } from './Lesson12PreExamChallengeSim';
+import { Lesson13MorseSim } from './Lesson13MorseSim';
 
 interface SimulatorRouterProps {
   simulatorId: SimulatorId;
@@ -47,5 +48,7 @@ export const SimulatorRouter: React.FC<SimulatorRouterProps> = ({
       return <Lesson11AntennaSim onChallengeComplete={onChallengeComplete} />;
     case 'pre-exam-calc':
       return <Lesson12PreExamChallengeSim onChallengeComplete={onChallengeComplete} />;
+    case 'morse-cw':
+      return <Lesson13MorseSim onChallengeComplete={onChallengeComplete} />;
   }
 };

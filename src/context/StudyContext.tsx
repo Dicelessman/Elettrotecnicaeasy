@@ -95,6 +95,10 @@ function buildDefaultProfile(uid = 'guest', displayName = 'Radio Studente'): Use
     unlockedBadges: [],
     weeklyWeekKey: weekKey,
     weeklyCompletedLessons: [],
+    weeklyXpWeekKey: weekKey,
+    weeklyXp: 0,
+    wrongQuestionIds: [],
+    masteredFlashcards: [],
     reminderEnabled: false,
     fcmEnabled: false,
     reminderTime: '19:30',
@@ -181,7 +185,49 @@ function sanitizeLessonsTouched(arr: unknown): LessonId[] {
   const unique = Array.from(
     new Set(arr.filter((x): x is LessonId => typeof x === 'string' && VALID_LESSONS.has(x)))
   );
-  return unique.slice(0, 12);
+  return unique.slice(0, 13);
+}
+
+function sanitizeWrongQuestionIds(arr: unknown): string[] {
+  if (!Array.isArray(arr)) return [];
+  const unique = Array.from(
+    new Set(
+      arr.filter(
+        (x): x is string =>
+          typeof x === 'string' &&
+          /^q([1-9]|1[0-3])-[0-9]{1,2}$/.test(x)
+      )
+    )
+  );
+  return unique.slice(0, 150);
+}
+
+function sanitizeMasteredFlashcards(arr: unknown): string[] {
+  if (!Array.isArray(arr)) return [];
+  const unique = Array.from(
+    new Set(
+      arr.filter(
+        (x): x is string =>
+          typeof x === 'string' &&
+          x.length >= 3 &&
+          x.length <= 64 &&
+          /^[a-zA-Z0-9_-]+$/.test(x)
+      )
+    )
+  );
+  return unique.slice(0, 250);
+}
+
+function computeNextWeeklyXp(
+  cur: UserProfile,
+  xpGained: number
+): { weeklyXpWeekKey: string; weeklyXp: number } {
+  const currentWeekKey = getIsoWeekKey();
+  const base = cur.weeklyXpWeekKey === currentWeekKey ? Math.max(0, Math.round(cur.weeklyXp)) : 0;
+  return {
+    weeklyXpWeekKey: currentWeekKey,
+    weeklyXp: Math.min(1000000, base + Math.max(0, Math.round(xpGained))),
+  };
 }
 
 function getRankForXp(xp: number): { currentRank: RankDefinition; nextRank: RankDefinition | null } {
@@ -264,7 +310,7 @@ function buildMemberStatsSnapshot(
     avgQuizScore,
     totalQuizAttempts,
     examBestScore,
-    badgesCount: Math.max(0, Math.min(16, curProfile.unlockedBadges.length)),
+    badgesCount: Math.max(0, Math.min(17, curProfile.unlockedBadges.length)),
     totalMinutesStudied,
   };
 }
@@ -287,6 +333,7 @@ function loadGuestSnapshot(): GuestSnapshot {
     const isSameDay = p?.todayDateKey === today;
     const currentWeekKey = getIsoWeekKey();
     const isSameWeek = sanitizeWeekKey(p?.weeklyWeekKey) === currentWeekKey;
+    const isSameWeeklyXpWeek = sanitizeWeekKey(p?.weeklyXpWeekKey) === currentWeekKey;
     const profile: UserProfile = {
       ...base,
       dailyGoalMinutes: sanitizeGoal(p?.dailyGoalMinutes ?? 15),
@@ -308,6 +355,12 @@ function loadGuestSnapshot(): GuestSnapshot {
       unlockedBadges: sanitizeBadges(p?.unlockedBadges),
       weeklyWeekKey: currentWeekKey,
       weeklyCompletedLessons: isSameWeek ? sanitizeLessonsTouched(p?.weeklyCompletedLessons) : [],
+      weeklyXpWeekKey: currentWeekKey,
+      weeklyXp: isSameWeeklyXpWeek
+        ? Math.max(0, Math.min(1000000, Math.round(Number(p?.weeklyXp ?? 0))))
+        : 0,
+      wrongQuestionIds: sanitizeWrongQuestionIds(p?.wrongQuestionIds),
+      masteredFlashcards: sanitizeMasteredFlashcards(p?.masteredFlashcards),
       reminderEnabled: Boolean(p?.reminderEnabled),
       fcmEnabled: Boolean(p?.fcmEnabled),
       reminderTime: sanitizeTime(p?.reminderTime || '19:30'),
@@ -482,7 +535,9 @@ export interface StudyContextValue {
   ) => Promise<QuizOutcome>;
   recordQuickReviewResult: (
     correctCount: number,
-    reviewedLessonIds: LessonId[]
+    reviewedLessonIds: LessonId[],
+    totalQuestions?: number,
+    customLabel?: string
   ) => Promise<QuickReviewOutcome>;
   recordExamSimulationResult: (
     correctCount: number,
@@ -490,6 +545,8 @@ export interface StudyContextValue {
     elapsedMinutes: number,
     coveredLessonIds: LessonId[]
   ) => Promise<ExamSimulationOutcome>;
+  recordQuestionOutcomes: (wrongIds: string[], correctIds: string[]) => Promise<void>;
+  toggleFlashcardMastered: (flashcardId: string) => Promise<void>;
   touchLessonStudy: (lessonId: LessonId, bonusMinutes?: number) => Promise<void>;
   notificationBanner: string | null;
   dismissNotificationBanner: () => void;
@@ -573,6 +630,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         share: boolean;
         displayName: string;
         xp: number;
+        weeklyXpWeekKey?: string;
+        weeklyXp?: number;
         badgesCount: number;
         completedLessonsCount: number;
         studyGroupsCount?: number;
@@ -584,6 +643,12 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         Math.min(100, Math.floor(opts.studyGroupsCount ?? studyGroupsRef.current.length))
       );
       const shouldShare = opts.share || groupsCount > 0;
+      const currentWeekKey = getIsoWeekKey();
+      const wkKey = opts.weeklyXpWeekKey || currentWeekKey;
+      const wkXp =
+        wkKey === currentWeekKey
+          ? Math.max(0, Math.min(1000000, Math.round(opts.weeklyXp ?? 0)))
+          : 0;
       try {
         if (!shouldShare) {
           const existingSnap = await getDoc(lbRef);
@@ -598,9 +663,11 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           userId: uid,
           nickname: (opts.displayName.trim() || 'Radio Studente').slice(0, 40),
           xp: Math.max(0, Math.min(1000000, Math.round(opts.xp))),
+          weeklyXpWeekKey: currentWeekKey,
+          weeklyXp: wkXp,
           rankLevel: Math.max(1, Math.min(5, Math.floor(rank.level))),
-          completedLessonsCount: Math.max(0, Math.min(12, Math.floor(opts.completedLessonsCount))),
-          badgesCount: Math.max(0, Math.min(16, Math.floor(opts.badgesCount))),
+          completedLessonsCount: Math.max(0, Math.min(13, Math.floor(opts.completedLessonsCount))),
+          badgesCount: Math.max(0, Math.min(17, Math.floor(opts.badgesCount))),
           studyGroupsCount: groupsCount,
           isPublic: true,
           updatedAt: serverTimestamp(),
@@ -608,6 +675,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const syncKey = JSON.stringify({
           n: payload.nickname,
           x: payload.xp,
+          wk: payload.weeklyXpWeekKey,
+          wx: payload.weeklyXp,
           r: payload.rankLevel,
           c: payload.completedLessonsCount,
           b: payload.badgesCount,
@@ -618,6 +687,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           await updateDoc(lbRef, {
             nickname: payload.nickname,
             xp: payload.xp,
+            weeklyXpWeekKey: payload.weeklyXpWeekKey,
+            weeklyXp: payload.weeklyXp,
             rankLevel: payload.rankLevel,
             completedLessonsCount: payload.completedLessonsCount,
             badgesCount: payload.badgesCount,
@@ -697,6 +768,13 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               guest.profile.weeklyWeekKey === currentWeekKey
                 ? sanitizeLessonsTouched(guest.profile.weeklyCompletedLessons)
                 : [],
+            weeklyXpWeekKey: currentWeekKey,
+            weeklyXp:
+              guest.profile.weeklyXpWeekKey === currentWeekKey
+                ? Math.max(0, Math.min(1000000, Math.round(guest.profile.weeklyXp)))
+                : 0,
+            wrongQuestionIds: sanitizeWrongQuestionIds(guest.profile.wrongQuestionIds),
+            masteredFlashcards: sanitizeMasteredFlashcards(guest.profile.masteredFlashcards),
             reminderEnabled: guest.profile.reminderEnabled,
             fcmEnabled: guest.profile.fcmEnabled,
             reminderTime: sanitizeTime(guest.profile.reminderTime),
@@ -788,11 +866,17 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             data.hapticFeedbackEnabled === undefined ||
             data.weeklyWeekKey === undefined ||
             data.weeklyCompletedLessons === undefined ||
+            data.weeklyXpWeekKey === undefined ||
+            data.weeklyXp === undefined ||
+            data.wrongQuestionIds === undefined ||
+            data.masteredFlashcards === undefined ||
             data.fcmEnabled === undefined ||
             data.reminderTimes === undefined ||
             data.reminderTimezone === undefined
           ) {
             const fallbackTime = sanitizeTime(String(data.reminderTime || '19:30'));
+            const currentWeekKey = getIsoWeekKey();
+            const isSameWkXp = sanitizeWeekKey(data.weeklyXpWeekKey) === currentWeekKey;
             await updateDoc(userDocRef, {
               theme: sanitizeTheme(data.theme),
               exampleDomain: sanitizeDomain(data.exampleDomain),
@@ -804,8 +888,14 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 data.hapticFeedbackEnabled !== undefined
                   ? Boolean(data.hapticFeedbackEnabled)
                   : true,
-              weeklyWeekKey: sanitizeWeekKey(data.weeklyWeekKey) || getIsoWeekKey(),
+              weeklyWeekKey: sanitizeWeekKey(data.weeklyWeekKey) || currentWeekKey,
               weeklyCompletedLessons: sanitizeLessonsTouched(data.weeklyCompletedLessons),
+              weeklyXpWeekKey: currentWeekKey,
+              weeklyXp: isSameWkXp
+                ? Math.max(0, Math.min(1000000, Math.round(Number(data.weeklyXp ?? 0))))
+                : 0,
+              wrongQuestionIds: sanitizeWrongQuestionIds(data.wrongQuestionIds),
+              masteredFlashcards: sanitizeMasteredFlashcards(data.masteredFlashcards),
               fcmEnabled: Boolean(data.fcmEnabled),
               reminderTimes: sanitizeReminderTimes(data.reminderTimes, fallbackTime),
               reminderTimezone: sanitizeTimezone(data.reminderTimezone),
@@ -838,6 +928,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const sameDay = data.todayDateKey === today;
         const currentWeekKey = getIsoWeekKey();
         const sameWeek = sanitizeWeekKey(data.weeklyWeekKey) === currentWeekKey;
+        const sameWeeklyXpWeek = sanitizeWeekKey(data.weeklyXpWeekKey) === currentWeekKey;
         setProfile({
           uid: String(data.uid || uid),
           displayName: String(data.displayName || 'Radio Studente'),
@@ -858,6 +949,12 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           unlockedBadges: sanitizeBadges(data.unlockedBadges),
           weeklyWeekKey: currentWeekKey,
           weeklyCompletedLessons: sameWeek ? sanitizeLessonsTouched(data.weeklyCompletedLessons) : [],
+          weeklyXpWeekKey: currentWeekKey,
+          weeklyXp: sameWeeklyXpWeek
+            ? Math.max(0, Math.min(1000000, Math.round(Number(data.weeklyXp ?? 0))))
+            : 0,
+          wrongQuestionIds: sanitizeWrongQuestionIds(data.wrongQuestionIds),
+          masteredFlashcards: sanitizeMasteredFlashcards(data.masteredFlashcards),
           reminderEnabled: Boolean(data.reminderEnabled),
           fcmEnabled: Boolean(data.fcmEnabled),
           reminderTime: sanitizeTime(String(data.reminderTime || '19:30')),
@@ -991,12 +1088,20 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       lbQuery,
       (snapshot) => {
         const entries: LeaderboardEntry[] = [];
+        const currentWeekKey = getIsoWeekKey();
         snapshot.forEach((docSnap) => {
           const d = docSnap.data();
+          const wkKey = sanitizeWeekKey(d.weeklyXpWeekKey);
+          const wkXp =
+            wkKey === currentWeekKey && typeof d.weeklyXp === 'number'
+              ? Math.max(0, Math.min(1000000, Math.round(d.weeklyXp)))
+              : 0;
           entries.push({
             userId: String(d.userId || docSnap.id),
             nickname: String(d.nickname || 'Radio Studente'),
             xp: Number(d.xp ?? 0),
+            weeklyXpWeekKey: wkKey || currentWeekKey,
+            weeklyXp: wkXp,
             rankLevel: Number(d.rankLevel ?? 1),
             completedLessonsCount: Number(d.completedLessonsCount ?? 0),
             badgesCount: Number(d.badgesCount ?? 0),
@@ -1260,13 +1365,20 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const completedCount = Object.values(lessonProgress).filter((lp) => lp.completed).length;
     const nickname = (profile.displayName.trim() || 'Radio Studente').slice(0, 40);
     const xp = Math.max(0, Math.min(1000000, Math.round(profile.xp)));
+    const currentWeekKey = getIsoWeekKey();
+    const wkXp =
+      profile.weeklyXpWeekKey === currentWeekKey
+        ? Math.max(0, Math.min(1000000, Math.round(profile.weeklyXp)))
+        : 0;
     const rankLevel = Math.max(1, Math.min(5, Math.floor(getRankForXp(xp).currentRank.level)));
-    const badgesCount = Math.max(0, Math.min(16, Math.floor(profile.unlockedBadges.length)));
+    const badgesCount = Math.max(0, Math.min(17, Math.floor(profile.unlockedBadges.length)));
 
     const desiredKey = shouldShare
       ? JSON.stringify({
           n: nickname,
           x: xp,
+          wk: currentWeekKey,
+          wx: wkXp,
           r: rankLevel,
           c: completedCount,
           b: badgesCount,
@@ -1279,6 +1391,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const remoteKey = JSON.stringify({
         n: existingRemote.nickname,
         x: Math.round(existingRemote.xp),
+        wk: existingRemote.weeklyXpWeekKey || '',
+        wx: Math.round(existingRemote.weeklyXp ?? 0),
         r: Math.floor(existingRemote.rankLevel),
         c: Math.floor(existingRemote.completedLessonsCount),
         b: Math.floor(existingRemote.badgesCount),
@@ -1299,6 +1413,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         share: profile.shareInLeaderboard,
         displayName: nickname,
         xp,
+        weeklyXpWeekKey: currentWeekKey,
+        weeklyXp: wkXp,
         badgesCount,
         completedLessonsCount: completedCount,
         studyGroupsCount: groupsCount,
@@ -1314,6 +1430,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     profile.shareInLeaderboard,
     profile.displayName,
     profile.xp,
+    profile.weeklyXpWeekKey,
+    profile.weeklyXp,
     profile.unlockedBadges.length,
     lessonProgress,
     syncLeaderboardDoc,
@@ -1640,10 +1758,13 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const completedCount = Object.values(lessonProgressRef.current).filter(
             (lp) => lp.completed
           ).length;
+          const nextWk = computeNextWeeklyXp(cur, 0);
           await syncLeaderboardDoc(uid, {
             share: nextShare,
             displayName: nextName,
             xp: cur.xp,
+            weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+            weeklyXp: nextWk.weeklyXp,
             badgesCount: cur.unlockedBadges.length,
             completedLessonsCount: completedCount,
             studyGroupsCount: studyGroupsRef.current.length,
@@ -2157,6 +2278,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const yesterday = getYesterdayKey();
       const curProfile = profileRef.current;
       const nextTotalXp = Math.min(1000000, Math.round(curProfile.xp + xpBonus));
+      const nextWk = computeNextWeeklyXp(curProfile, xpBonus);
       const baseTodayMin = curProfile.todayDateKey === today ? curProfile.todayMinutesStudied : 0;
       const nextTodayMin = Math.min(1440, Math.max(baseTodayMin + 1, 1));
       let nextStreak = curProfile.streakCount;
@@ -2190,6 +2312,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setProfile((prev) => ({
           ...prev,
           xp: nextTotalXp,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           todayDateKey: today,
           todayMinutesStudied: nextTodayMin,
           streakCount: nextStreak,
@@ -2226,6 +2350,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         await updateDoc(doc(db, 'users', uid), {
           xp: nextTotalXp,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           streakCount: Math.floor(nextStreak),
           lastStudyDate: nextLastStudy,
           todayDateKey: today,
@@ -2244,6 +2370,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             share: curProfile.shareInLeaderboard,
             displayName: curProfile.displayName,
             xp: nextTotalXp,
+            weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+            weeklyXp: nextWk.weeklyXp,
             badgesCount: curProfile.unlockedBadges.length,
             completedLessonsCount: completedCount,
             studyGroupsCount: studyGroupsRef.current.length,
@@ -2396,6 +2524,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       const nextTotalXp = Math.min(1000000, Math.round(curProfile.xp + xpGained));
+      const nextWk = computeNextWeeklyXp(curProfile, xpGained);
       const newRankLevel = getRankForXp(nextTotalXp).currentRank.level;
 
       const nextXpEarned = Math.min(5000, (existing?.xpEarned ?? 0) + xpGained);
@@ -2458,6 +2587,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           unlockedBadges: nextBadges,
           weeklyWeekKey: currentWeekKey,
           weeklyCompletedLessons: nextWeeklyLessons,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           todayDateKey: today,
           todayMinutesStudied: nextTodayMin,
           streakCount: nextStreak,
@@ -2529,6 +2660,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           unlockedBadges: nextBadges,
           weeklyWeekKey: currentWeekKey,
           weeklyCompletedLessons: nextWeeklyLessons,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           streakCount: Math.floor(nextStreak),
           lastStudyDate: nextLastStudy,
           todayDateKey: today,
@@ -2565,6 +2698,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             share: curProfile.shareInLeaderboard,
             displayName: curProfile.displayName,
             xp: nextTotalXp,
+            weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+            weeklyXp: nextWk.weeklyXp,
             badgesCount: nextBadges.length,
             completedLessonsCount: completedCount,
             studyGroupsCount: studyGroupsRef.current.length,
@@ -2587,12 +2722,19 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const recordQuickReviewResult = useCallback(
-    async (correctCount: number, reviewedLessonIds: LessonId[]): Promise<QuickReviewOutcome> => {
-      const clampedCorrect = Math.max(0, Math.min(5, Math.floor(correctCount)));
+    async (
+      correctCount: number,
+      reviewedLessonIds: LessonId[],
+      totalQuestionsArg = 5,
+      customLabel?: string
+    ): Promise<QuickReviewOutcome> => {
+      const clampedTotal = Math.max(1, Math.min(30, Math.floor(totalQuestionsArg)));
+      const clampedCorrect = Math.max(0, Math.min(clampedTotal, Math.floor(correctCount)));
       const xpGained = 10 + clampedCorrect * 5;
       const curProfile = profileRef.current;
       const previousRankLevel = getRankForXp(curProfile.xp).currentRank.level;
       const nextTotalXp = Math.min(1000000, Math.round(curProfile.xp + xpGained));
+      const nextWk = computeNextWeeklyXp(curProfile, xpGained);
       const newRankLevel = getRankForXp(nextTotalXp).currentRank.level;
 
       const currentWeekKey = getIsoWeekKey();
@@ -2618,7 +2760,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const nowMs = Date.now();
       const attemptId = `review_${nowMs}_${Math.random().toString(36).slice(2, 7)}`;
-      const reviewScorePct = Math.round((clampedCorrect / 5) * 100);
+      const reviewScorePct = Math.round((clampedCorrect / clampedTotal) * 100);
+      const label = (customLabel || `Ripasso Veloce (${clampedTotal} dom.)`).slice(0, 60);
 
       if (!user || !profileReady) {
         setQuizAttempts((prev) => [
@@ -2628,16 +2771,18 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             attemptId,
             kind: 'review',
             lessonId: 'all',
-            label: 'Ripasso Veloce (5 dom.)',
+            label,
             scorePercent: reviewScorePct,
             correctCount: clampedCorrect,
-            totalQuestions: 5,
+            totalQuestions: clampedTotal,
             recordedAtMs: nowMs,
           },
         ]);
         setProfile((prev) => ({
           ...prev,
           xp: nextTotalXp,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           todayDateKey: today,
           todayMinutesStudied: nextTodayMin,
           streakCount: nextStreak,
@@ -2668,10 +2813,10 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           attemptId,
           kind: 'review',
           lessonId: 'all',
-          label: 'Ripasso Veloce (5 dom.)',
+          label,
           scorePercent: reviewScorePct,
           correctCount: clampedCorrect,
-          totalQuestions: 5,
+          totalQuestions: clampedTotal,
           recordedAtMs: nowMs,
           createdAt: serverTimestamp(),
         });
@@ -2681,6 +2826,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           unlockedBadges: sanitizeBadges(curProfile.unlockedBadges),
           weeklyWeekKey: currentWeekKey,
           weeklyCompletedLessons: nextWeeklyLessons,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           streakCount: Math.floor(nextStreak),
           lastStudyDate: nextLastStudy,
           todayDateKey: today,
@@ -2718,6 +2865,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             share: curProfile.shareInLeaderboard,
             displayName: curProfile.displayName,
             xp: nextTotalXp,
+            weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+            weeklyXp: nextWk.weeklyXp,
             badgesCount: curProfile.unlockedBadges.length,
             completedLessonsCount: completedCount,
             studyGroupsCount: studyGroupsRef.current.length,
@@ -2749,6 +2898,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const curProfile = profileRef.current;
       const previousRankLevel = getRankForXp(curProfile.xp).currentRank.level;
       const nextTotalXp = Math.min(1000000, Math.round(curProfile.xp + xpGained));
+      const nextWk = computeNextWeeklyXp(curProfile, xpGained);
       const newRankLevel = getRankForXp(nextTotalXp).currentRank.level;
 
       const currentWeekKey = getIsoWeekKey();
@@ -2793,6 +2943,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setProfile((prev) => ({
           ...prev,
           xp: nextTotalXp,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           todayDateKey: today,
           todayMinutesStudied: nextTodayMin,
           streakCount: nextStreak,
@@ -2836,6 +2988,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           unlockedBadges: sanitizeBadges(curProfile.unlockedBadges),
           weeklyWeekKey: currentWeekKey,
           weeklyCompletedLessons: nextWeeklyLessons,
+          weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+          weeklyXp: nextWk.weeklyXp,
           streakCount: Math.floor(nextStreak),
           lastStudyDate: nextLastStudy,
           todayDateKey: today,
@@ -2876,6 +3030,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             share: curProfile.shareInLeaderboard,
             displayName: curProfile.displayName,
             xp: nextTotalXp,
+            weeklyXpWeekKey: nextWk.weeklyXpWeekKey,
+            weeklyXp: nextWk.weeklyXp,
             badgesCount: curProfile.unlockedBadges.length,
             completedLessonsCount: completedCount,
             studyGroupsCount: studyGroupsRef.current.length,
@@ -2888,6 +3044,62 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { xpGained, passed, previousRankLevel, newRankLevel };
     },
     [user, profileReady, syncLeaderboardDoc]
+  );
+
+  const recordQuestionOutcomes = useCallback(
+    async (wrongIds: string[], correctIds: string[]) => {
+      const cleanWrong = sanitizeWrongQuestionIds(wrongIds);
+      const cleanCorrect = new Set(sanitizeWrongQuestionIds(correctIds));
+      const curList = sanitizeWrongQuestionIds(profileRef.current.wrongQuestionIds);
+      const nextSet = new Set(curList.filter((id) => !cleanCorrect.has(id)));
+      for (const id of cleanWrong) {
+        if (!cleanCorrect.has(id)) {
+          nextSet.add(id);
+        }
+      }
+      const nextList = Array.from(nextSet).slice(0, 150);
+      if (nextList.length === curList.length && nextList.every((v, i) => v === curList[i])) {
+        return;
+      }
+      if (!user || !profileReady) {
+        setProfile((prev) => ({ ...prev, wrongQuestionIds: nextList }));
+        return;
+      }
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          wrongQuestionIds: nextList,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+      }
+    },
+    [user, profileReady]
+  );
+
+  const toggleFlashcardMastered = useCallback(
+    async (flashcardId: string) => {
+      const cleanId = sanitizeMasteredFlashcards([flashcardId])[0];
+      if (!cleanId) return;
+      const curList = sanitizeMasteredFlashcards(profileRef.current.masteredFlashcards);
+      const nextList = curList.includes(cleanId)
+        ? curList.filter((id) => id !== cleanId)
+        : sanitizeMasteredFlashcards([...curList, cleanId]);
+
+      if (!user || !profileReady) {
+        setProfile((prev) => ({ ...prev, masteredFlashcards: nextList }));
+        return;
+      }
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          masteredFlashcards: nextList,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+      }
+    },
+    [user, profileReady]
   );
 
   const { currentRank, nextRank } = useMemo(() => getRankForXp(profile.xp), [profile.xp]);
@@ -2930,6 +3142,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     recordQuizResult,
     recordQuickReviewResult,
     recordExamSimulationResult,
+    recordQuestionOutcomes,
+    toggleFlashcardMastered,
     touchLessonStudy,
     notificationBanner,
     dismissNotificationBanner: () => setNotificationBanner(null),

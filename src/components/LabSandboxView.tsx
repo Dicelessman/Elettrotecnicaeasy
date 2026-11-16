@@ -41,7 +41,7 @@ export const LabSandboxView: React.FC<LabSandboxViewProps> = ({ onOpenLesson }) 
               Laboratorio Interattivo Libero
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-              Sperimenta subito qualsiasi fenomeno dei 12 moduli senza dover seguire l’ordine delle lezioni.
+              Sperimenta subito qualsiasi fenomeno dei {LESSONS.length} moduli senza dover seguire l’ordine delle lezioni.
             </p>
           </div>
           <button

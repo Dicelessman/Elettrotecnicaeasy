@@ -19,6 +19,7 @@ import { LESSONS, SCOUT_RANKS } from '../data/curriculum';
 import { useStudy, type ExamSimulationOutcome } from '../context/StudyContext';
 import type { LessonId, QuizQuestion } from '../types/radiolab';
 import { triggerGamificationFeedback } from '../utils/feedbackAudio';
+import { generateParametricQuestions } from '../utils/parametricQuiz';
 
 interface ExamSimulationViewProps {
   onOpenLesson: (lessonId: LessonId) => void;
@@ -45,15 +46,17 @@ function shuffleArray<T>(items: T[]): T[] {
 }
 
 /**
- * Generates 30 unique questions across ALL 12 modules:
- * guarantees at least 2 random questions from each of the 12 modules (24)
- * plus 6 additional random questions from the remaining pool (total 30).
+ * Generates 30 unique questions across ALL 13 modules:
+ * guarantees 2 random questions from each of the 13 modules (26),
+ * plus 2 dynamic parametric numeric calculations, plus 2 leftover questions (total 30).
  */
 function buildExamDeck(): ExamQuestionItem[] {
   const guaranteed: ExamQuestionItem[] = [];
   const leftovers: ExamQuestionItem[] = [];
+  const lessonMetaById = new Map<LessonId, { number: number; shortTitle: string }>();
 
   for (const lesson of LESSONS) {
+    lessonMetaById.set(lesson.id, { number: lesson.number, shortTitle: lesson.shortTitle });
     const shuffled = shuffleArray(lesson.quiz).map<ExamQuestionItem>((q) => ({
       ...q,
       lessonId: lesson.id,
@@ -64,8 +67,22 @@ function buildExamDeck(): ExamQuestionItem[] {
     leftovers.push(...shuffled.slice(2));
   }
 
-  const extraCount = Math.max(0, EXAM_QUESTION_COUNT - guaranteed.length);
-  const combined = [...guaranteed, ...shuffleArray(leftovers).slice(0, extraCount)];
+  const parametricQuestions: ExamQuestionItem[] = generateParametricQuestions(2).map((item) => {
+    const meta = lessonMetaById.get(item.lessonId) ?? { number: 1, shortTitle: 'Radio' };
+    return {
+      ...item.question,
+      lessonId: item.lessonId,
+      lessonNumber: meta.number,
+      lessonShortTitle: meta.shortTitle,
+    };
+  });
+
+  const extraCount = Math.max(0, EXAM_QUESTION_COUNT - guaranteed.length - parametricQuestions.length);
+  const combined = [
+    ...guaranteed,
+    ...parametricQuestions,
+    ...shuffleArray(leftovers).slice(0, extraCount),
+  ];
   return shuffleArray(combined);
 }
 
@@ -80,7 +97,12 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
   onOpenLesson,
   onBackToPath,
 }) => {
-  const { profile, recordExamSimulationResult, setIsTrackingStudy } = useStudy();
+  const {
+    profile,
+    recordExamSimulationResult,
+    recordQuestionOutcomes,
+    setIsTrackingStudy,
+  } = useStudy();
   const prefersReducedMotion = useReducedMotion();
 
   const [deck, setDeck] = useState<ExamQuestionItem[]>(() => buildExamDeck());
@@ -115,6 +137,12 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
       const elapsedSeconds = Math.max(60, EXAM_DURATION_SECONDS - secondsRemaining);
       const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
       const coveredLessons = Array.from(new Set(deck.map((q) => q.lessonId)));
+      const wrongIds = deck
+        .filter((q) => !q.id.startsWith('param-') && answers[q.id] !== q.correctIndex)
+        .map((q) => q.id);
+      const correctIds = deck
+        .filter((q) => !q.id.startsWith('param-') && answers[q.id] === q.correctIndex)
+        .map((q) => q.id);
 
       try {
         const res = await recordExamSimulationResult(
@@ -123,6 +151,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
           elapsedMinutes,
           coveredLessons
         );
+        await recordQuestionOutcomes(wrongIds, correctIds);
         const promoted = res.newRankLevel > res.previousRankLevel;
         triggerGamificationFeedback(
           res.passed ? (promoted ? 'badgeUnlock' : 'examPass') : 'quizTryAgain',
@@ -139,7 +168,16 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
         setSubmitting(false);
       }
     },
-    [deck, answers, secondsRemaining, finished, recordExamSimulationResult, profile.soundEffectsEnabled, profile.hapticFeedbackEnabled]
+    [
+      deck,
+      answers,
+      secondsRemaining,
+      finished,
+      recordExamSimulationResult,
+      recordQuestionOutcomes,
+      profile.soundEffectsEnabled,
+      profile.hapticFeedbackEnabled,
+    ]
   );
 
   // Exam countdown timer
@@ -287,7 +325,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
               </h1>
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 {passed
-                  ? 'Ottima padronanza trasversale su tutti i 12 moduli del manuale di radiotecnica.'
+                  ? `Ottima padronanza trasversale su tutti i ${LESSONS.length} moduli del manuale di radiotecnica.`
                   : 'Servono almeno 21 risposte esatte su 30 (70%). Controlla i moduli più deboli qui sotto e riprova.'}
               </p>
             </div>
@@ -343,10 +381,10 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
             </div>
           )}
 
-          {/* Per-module breakdown across all 12 modules */}
+          {/* Per-module breakdown across all modules */}
           <div className="space-y-3">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              Rendimento sui 12 Moduli
+              Rendimento sui {LESSONS.length} Moduli
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
               {moduleBreakdown.map((m) => {
@@ -502,7 +540,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
           <div>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
               <ClipboardCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-              <span>Simulazione Esame · 30 Domande dai 12 Moduli</span>
+              <span>Simulazione Esame · 30 Domande dai {LESSONS.length} Moduli</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
               Risposte date: {answeredCount} / {deck.length} · Soglia idoneità: 70% (21/30)

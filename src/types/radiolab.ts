@@ -10,7 +10,8 @@ export type LessonId =
   | 'lesson-09'
   | 'lesson-10'
   | 'lesson-11'
-  | 'lesson-12';
+  | 'lesson-12'
+  | 'lesson-13';
 
 export type SectionKey = 'analogy' | 'simulator' | 'formula' | 'quiz';
 
@@ -34,7 +35,8 @@ export type ModuleBadgeId =
   | 'badge-09'
   | 'badge-10'
   | 'badge-11'
-  | 'badge-12';
+  | 'badge-12'
+  | 'badge-13';
 
 export type WeeklyBadgeId = 'wbadge-01' | 'wbadge-02' | 'wbadge-03' | 'wbadge-04';
 
@@ -42,7 +44,16 @@ export type BadgeId = ModuleBadgeId | WeeklyBadgeId;
 
 export type WeeklyChallengeId = 'weekly-01' | 'weekly-02' | 'weekly-03' | 'weekly-04';
 
-export type AppView = 'path' | 'review' | 'exam' | 'lesson' | 'lab' | 'glossary' | 'groups' | 'profile';
+export type AppView =
+  | 'path'
+  | 'review'
+  | 'exam'
+  | 'lesson'
+  | 'lab'
+  | 'utilities'
+  | 'glossary'
+  | 'groups'
+  | 'profile';
 
 export type SimulatorId =
   | 'atoms-flow'
@@ -56,7 +67,8 @@ export type SimulatorId =
   | 'diode-transistor'
   | 'modulation-logic'
   | 'antenna-field'
-  | 'pre-exam-calc';
+  | 'pre-exam-calc'
+  | 'morse-cw';
 
 export interface ConceptBlock {
   title: string;
@@ -173,6 +185,10 @@ export interface UserProfile {
   unlockedBadges: BadgeId[];
   weeklyWeekKey: string;
   weeklyCompletedLessons: LessonId[];
+  weeklyXpWeekKey: string;
+  weeklyXp: number;
+  wrongQuestionIds: string[];
+  masteredFlashcards: string[];
   reminderEnabled: boolean;
   fcmEnabled: boolean;
   reminderTime: string;
@@ -242,6 +258,8 @@ export interface LeaderboardEntry {
   completedLessonsCount: number;
   badgesCount: number;
   studyGroupsCount?: number;
+  weeklyXpWeekKey?: string;
+  weeklyXp?: number;
   isPublic: boolean;
 }
 

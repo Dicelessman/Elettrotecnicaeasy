@@ -20,6 +20,7 @@ const BADGE_PALETTES: Record<BadgeId, { ring: string; bg: string; fg: string; ac
   'badge-10': { ring: '#0284c7', bg: '#f0f9ff', fg: '#0c4a6e', accent: '#dc2626' },
   'badge-11': { ring: '#059669', bg: '#d1fae5', fg: '#064e3b', accent: '#0284c7' },
   'badge-12': { ring: '#d97706', bg: '#fef9c3', fg: '#854d0e', accent: '#0284c7' },
+  'badge-13': { ring: '#4f46e5', bg: '#eef2ff', fg: '#3730a3', accent: '#059669' },
   'wbadge-01': { ring: '#d97706', bg: '#fffbeb', fg: '#92400e', accent: '#f59e0b' },
   'wbadge-02': { ring: '#0284c7', bg: '#f0f9ff', fg: '#075985', accent: '#f59e0b' },
   'wbadge-03': { ring: '#0d9488', bg: '#f0fdfa', fg: '#115e59', accent: '#f59e0b' },
@@ -181,6 +182,20 @@ export const BadgeGraphic: React.FC<BadgeGraphicProps> = ({
             fill={pal.accent}
             stroke={pal.fg}
           />
+        </g>
+      )}
+
+      {badgeId === 'badge-13' && (
+        <g stroke={pal.fg} fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {/* Telegraph lever + dit-dah-dit */}
+          <line x1="20" y1="34" x2="54" y2="26" strokeWidth="3" />
+          <circle cx="24" cy="33" r="4" fill={pal.accent} stroke="none" />
+          <line x1="39" y1="31" x2="39" y2="41" />
+          <rect x="26" y="41" width="28" height="5" rx="2" fill={pal.fg} stroke="none" />
+          {/* Morse R: · − · */}
+          <circle cx="26" cy="56" r="2.8" fill={pal.accent} stroke="none" />
+          <line x1="34" y1="56" x2="46" y2="56" stroke={pal.fg} strokeWidth="3.5" />
+          <circle cx="54" cy="56" r="2.8" fill={pal.accent} stroke="none" />
         </g>
       )}
 

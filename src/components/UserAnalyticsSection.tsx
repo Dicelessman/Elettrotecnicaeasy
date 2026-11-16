@@ -205,7 +205,7 @@ export const UserAnalyticsSection: React.FC = () => {
             <span>Analisi Apprendimento e Statistiche (Recharts)</span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Evoluzione cronologica dei punteggi nei quiz e distribuzione del tempo di studio sui 12 moduli.
+            Evoluzione cronologica dei punteggi nei quiz e distribuzione del tempo di studio sui {moduleTimeSeries.length} moduli.
           </p>
         </div>
         <div className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
@@ -398,7 +398,7 @@ export const UserAnalyticsSection: React.FC = () => {
               <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
                 <div className="text-[10px] text-slate-500 dark:text-slate-400">Moduli con studio attivo</div>
                 <div className="text-xs sm:text-sm font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400 mt-0.5">
-                  {moduleTimeSeries.filter((m) => m.minutesStudied > 0).length} / 12
+                  {moduleTimeSeries.filter((m) => m.minutesStudied > 0).length} / {moduleTimeSeries.length}
                 </div>
               </div>
             </div>

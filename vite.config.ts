@@ -52,6 +52,8 @@ export default defineConfig(() => {
           globIgnores: ['assets/aistudio/**/*.pdf'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [
+            /^\/api\//i,
+            /^\/__\//i,
             /^\/assets\/aistudio\/.*\.pdf$/i,
             /^\/firebase-messaging-sw\.js$/i,
           ],

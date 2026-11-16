@@ -95,7 +95,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'd
                 <li className="flex items-start gap-2">
                   <span className="font-mono font-bold text-sky-700 dark:text-sky-400">3.</span>
                   <span>
-                    Apri <strong>Radio easy</strong> dalla Home per studiare i 12 moduli anche senza connessione.
+                    Apri <strong>Radio easy</strong> dalla Home per studiare i 13 moduli anche senza connessione.
                   </span>
                 </li>
               </ol>

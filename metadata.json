@@ -1,6 +1,6 @@
 {
   "name": "Radiotecnica easy",
-  "description": "Piattaforma interattiva in italiano per imparare i 12 moduli di radiotecnica da zero con basi di circuiti elettrici, analogie personalizzabili, simulatori animati, quiz da 10 domande, gamification, promemoria e sincronizzazione cloud.",
+  "description": "Piattaforma interattiva in italiano per imparare i 13 moduli di radiotecnica (incluso Codice Morse CW) da zero con basi di circuiti elettrici, simulatori animati, trainer CW, calcolatori da campo, quiz, gamification, promemoria e sincronizzazione cloud.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

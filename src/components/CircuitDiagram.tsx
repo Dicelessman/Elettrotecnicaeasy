@@ -432,6 +432,64 @@ export const CircuitDiagram: React.FC<CircuitDiagramProps> = ({ diagramId }) => 
           </g>
         </g>
       )}
+
+      {diagramId === 'lesson-13' && (
+        <g stroke="currentColor" fill="none" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <text x="280" y="24" textAnchor="middle" stroke="none" fill="#4f46e5" className="text-xs font-semibold">
+            Catena CW (Onda Continua): Tasto → Oscillatore 700 Hz → Filtro Stretto → TX
+          </text>
+
+          {/* Telegraph key */}
+          <rect x="28" y="88" width="96" height="44" rx="6" stroke="#4f46e5" />
+          <line x1="48" y1="112" x2="88" y2="100" stroke="#4f46e5" strokeWidth="3" />
+          <circle cx="94" cy="112" r="3" fill="#4f46e5" stroke="none" />
+          <text x="76" y="148" textAnchor="middle" stroke="none" fill="currentColor" className="text-[11px] font-semibold">
+            Tasto CW (Key)
+          </text>
+
+          <line x1="124" y1="110" x2="162" y2="110" />
+
+          {/* Sidetone & Keying control */}
+          <rect x="162" y="78" width="112" height="64" rx="8" stroke="#0284c7" />
+          <text x="218" y="102" textAnchor="middle" stroke="none" fill="currentColor" className="text-xs font-semibold">
+            Oscillatore Nota
+          </text>
+          <text x="218" y="120" textAnchor="middle" stroke="none" fill="#0284c7" className="text-[10px] font-mono">
+            Sidetone 600–800 Hz
+          </text>
+          {/* Audio speaker tap */}
+          <path d="M 218 142 V 168" stroke="#059669" strokeDasharray="3 3" />
+          <text x="218" y="186" textAnchor="middle" stroke="none" fill="#059669" className="text-[10px] font-mono">
+            Monitor Cuffia
+          </text>
+
+          <line x1="274" y1="110" x2="312" y2="110" />
+
+          {/* Narrow CW filter */}
+          <rect x="312" y="78" width="108" height="64" rx="8" stroke="#d97706" />
+          <text x="366" y="102" textAnchor="middle" stroke="none" fill="currentColor" className="text-xs font-semibold">
+            Filtro CW Stretto
+          </text>
+          <text x="366" y="120" textAnchor="middle" stroke="none" fill="#d97706" className="text-[10px] font-mono">
+            Banda 300–500 Hz
+          </text>
+
+          <line x1="420" y1="110" x2="462" y2="110" />
+
+          {/* TX + Antenna */}
+          <polygon points="462,84 504,110 462,136" stroke="#059669" />
+          <text x="478" y="114" textAnchor="middle" stroke="none" fill="#059669" className="text-[10px] font-bold">
+            PA
+          </text>
+          <line x1="504" y1="110" x2="530" y2="110" stroke="#059669" />
+          <line x1="530" y1="110" x2="530" y2="62" stroke="#059669" strokeWidth="2.5" />
+          <line x1="530" y1="74" x2="516" y2="60" stroke="#059669" />
+          <line x1="530" y1="74" x2="544" y2="60" stroke="#059669" />
+          <text x="524" y="156" textAnchor="middle" stroke="none" fill="currentColor" className="text-[10px] font-mono">
+            Portante ON/OFF
+          </text>
+        </g>
+      )}
     </svg>
   );
 };

@@ -12,6 +12,7 @@ const NAV_ITEMS: { id: AppView; label: string }[] = [
   { id: 'path', label: 'Percorso' },
   { id: 'review', label: 'Ripasso' },
   { id: 'lab', label: 'Laboratorio' },
+  { id: 'utilities', label: 'Utilità' },
   { id: 'glossary', label: 'Glossario' },
   { id: 'groups', label: 'Gruppi' },
   { id: 'profile', label: 'Profilo' },

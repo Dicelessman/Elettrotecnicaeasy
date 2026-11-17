@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,6 +12,7 @@ import {
   Lightbulb,
   NotebookPen,
   Sliders,
+  Volume2,
   XCircle,
 } from 'lucide-react';
 import { BADGES, LESSONS } from '../data/curriculum';
@@ -19,10 +20,12 @@ import { DOMAIN_OPTIONS } from '../data/domainContent';
 import { useStudy } from '../context/StudyContext';
 import type { BadgeId, LessonId, SectionKey, WeeklyBadgeId } from '../types/radiolab';
 import { triggerGamificationFeedback } from '../utils/feedbackAudio';
+import type { SpeechSegment } from '../utils/speechSynthesis';
 import { BadgeGraphic } from './BadgeGraphic';
 import { CircuitDiagram } from './CircuitDiagram';
 import { CongratulationsModal } from './CongratulationsModal';
 import { GlossaryPopoverProvider, GlossaryText } from './GlossaryText';
+import { LessonAudioBar } from './LessonAudioBar';
 import { LessonNotesPanel } from './LessonNotesPanel';
 import { D3SineWaveSimulator } from './simulators/D3SineWaveSimulator';
 import { SimulatorRouter } from './simulators/SimulatorRouter';
@@ -79,7 +82,13 @@ export const LessonView: React.FC<LessonViewProps> = ({
   const [step, setStep] = useState<SectionKey>('analogy');
   const [simMode, setSimMode] = useState<'module' | 'd3-wave'>('module');
   const [notesOpen, setNotesOpen] = useState(false);
-  const notesPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const notesPanelRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [activeSpeechSegmentId, setActiveSpeechSegmentId] = useState<string | null>(null);
+  const [speechPlayRequest, setSpeechPlayRequest] = useState<{
+    segmentId: string;
+    nonce: number;
+  } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [showCongratsModal, setShowCongratsModal] = useState(false);
@@ -109,7 +118,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
     };
   }, [lesson.id, setIsTrackingStudy, setActiveStudyLesson, touchLessonStudy]);
 
-  // Reset local quiz state when switching lesson
+  // Reset local quiz & speech state when switching lesson
   useEffect(() => {
     setStep('analogy');
     setSimMode('module');
@@ -117,7 +126,96 @@ export const LessonView: React.FC<LessonViewProps> = ({
     setQuizSubmitted(false);
     setQuizSummary(null);
     setShowCongratsModal(false);
+    setActiveSpeechSegmentId(null);
+    setSpeechPlayRequest(null);
   }, [lesson.id]);
+
+  // Clear active audio highlight when switching step
+  useEffect(() => {
+    setActiveSpeechSegmentId(null);
+    setSpeechPlayRequest(null);
+  }, [step]);
+
+  // Scroll smoothly to the highlighted section/diagram while listening
+  useEffect(() => {
+    if (!activeSpeechSegmentId) return;
+    const el = sectionRefs.current[activeSpeechSegmentId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeSpeechSegmentId]);
+
+  const speechSegments = useMemo<SpeechSegment[]>(() => {
+    if (step === 'analogy') {
+      const hookText = [
+        `Perché ti serve, ambito ${domainMeta.label}: ${domainData.hook}`,
+        `Analogia intuitiva, ${domainData.analogyTitle}.`,
+        ...domainData.analogySteps.map((line, i) => `Passo ${i + 1}: ${line}`),
+      ].join(' ');
+
+      const circuitText = [
+        `${lesson.circuitBasis.title}. ${lesson.circuitBasis.summary}.`,
+        'Simboli nello schema:',
+        ...lesson.circuitBasis.symbols.map(
+          (sym) => `${sym.name}, simbolo ${sym.symbol}: ${sym.role}`
+        ),
+      ].join(' ');
+
+      const conceptSegments: SpeechSegment[] = lesson.concepts.map((c, idx) => ({
+        id: `concept-${idx}`,
+        label: c.title,
+        text: c.tip
+          ? `${c.title}. ${c.body}. Suggerimento pratico: ${c.tip}`
+          : `${c.title}. ${c.body}`,
+      }));
+
+      return [
+        { id: 'hook-analogy', label: 'Idea e Analogia', text: hookText },
+        { id: 'circuit', label: 'Schema Elettrico e Simboli', text: circuitText },
+        ...conceptSegments,
+      ];
+    }
+
+    if (step === 'simulator') {
+      return [
+        {
+          id: 'sim-guide',
+          label: lesson.simulatorTitle,
+          text: `Laboratorio interattivo: ${lesson.simulatorTitle}. Obiettivo della prova: ${lesson.simulatorChallenge}`,
+        },
+      ];
+    }
+
+    if (step === 'formula') {
+      const formulaMainText = [
+        `La formula da ricordare: ${lesson.formula.title}.`,
+        lesson.formula.plainReading,
+        'Variabili principali:',
+        ...lesson.formula.variables.map((v) => `${v.name}, in ${v.unit}: ${v.meaning}`),
+      ].join(' ');
+
+      return [
+        { id: 'formula-main', label: 'La Formula e le Variabili', text: formulaMainText },
+        {
+          id: 'formula-example',
+          label: `Esempio (${domainMeta.shortLabel})`,
+          text: `Esempio pratico, ambito ${domainMeta.shortLabel}: ${domainData.formulaExample}`,
+        },
+      ];
+    }
+
+    return lesson.quiz.map((q, qIdx) => ({
+      id: `quiz-${q.id}`,
+      label: `Domanda ${qIdx + 1}`,
+      text: `Domanda ${qIdx + 1}: ${q.question}. Opzioni: ${q.options
+        .map((opt, optIdx) => `${String.fromCharCode(65 + optIdx)}: ${opt}`)
+        .join('. ')}`,
+    }));
+  }, [lesson, step, domainData, domainMeta.label, domainMeta.shortLabel]);
+
+  const requestPlaySegment = (segmentId: string) => {
+    setSpeechPlayRequest({ segmentId, nonce: Date.now() });
+  };
 
   const goNextStep = async (current: SectionKey, target: SectionKey) => {
     await markSectionCompleted(lesson.id, current);
@@ -288,6 +386,13 @@ export const LessonView: React.FC<LessonViewProps> = ({
             );
           })}
         </div>
+        <LessonAudioBar
+          segments={speechSegments}
+          activeSegmentId={activeSpeechSegmentId}
+          onActiveSegmentChange={setActiveSpeechSegmentId}
+          playRequest={speechPlayRequest}
+        />
+
         {(step === 'analogy' || step === 'formula') && (
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Suggerimento: clicca sui termini tecnici sottolineati per aprire la definizione rapida dal glossario.
@@ -298,17 +403,40 @@ export const LessonView: React.FC<LessonViewProps> = ({
       {/* Step 1: Analogy, Circuit Basics Graphic & Concepts */}
       {step === 'analogy' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Perché ti serve ({domainMeta.label})
-                </h2>
-                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-w-3xl">
-                  <GlossaryText text={domainData.hook} />
-                </p>
+          <div
+            ref={(el) => {
+              sectionRefs.current['hook-analogy'] = el;
+            }}
+            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
+              activeSpeechSegmentId === 'hook-analogy'
+                ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
+                : 'border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Lightbulb className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    Perché ti serve ({domainMeta.label})
+                  </h2>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-w-3xl">
+                    <GlossaryText text={domainData.hook} />
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => requestPlaySegment('hook-analogy')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  activeSpeechSegmentId === 'hook-analogy'
+                    ? 'bg-sky-600 border-sky-600 text-white'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>{activeSpeechSegmentId === 'hook-analogy' ? 'In ascolto' : 'Ascolta'}</span>
+              </button>
             </div>
 
             <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-3">
@@ -334,17 +462,42 @@ export const LessonView: React.FC<LessonViewProps> = ({
           </div>
 
           {/* Electrical Circuit Basics Card + SVG Schematic */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <Cpu className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  {lesson.circuitBasis.title}
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
-                  <GlossaryText text={lesson.circuitBasis.summary} />
-                </p>
+          <div
+            ref={(el) => {
+              sectionRefs.current['circuit'] = el;
+            }}
+            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
+              activeSpeechSegmentId === 'circuit'
+                ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
+                : 'border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Cpu className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    {lesson.circuitBasis.title}
+                  </h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
+                    <GlossaryText text={lesson.circuitBasis.summary} />
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => requestPlaySegment('circuit')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  activeSpeechSegmentId === 'circuit'
+                    ? 'bg-sky-600 border-sky-600 text-white'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>
+                  {activeSpeechSegmentId === 'circuit' ? 'In ascolto' : 'Ascolta schema'}
+                </span>
+              </button>
             </div>
 
             <CircuitDiagram diagramId={lesson.circuitBasis.diagramId} />
@@ -372,24 +525,50 @@ export const LessonView: React.FC<LessonViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {lesson.concepts.map((c) => (
-              <div
-                key={c.title}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-2"
-              >
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {c.title}
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  <GlossaryText text={c.body} />
-                </p>
-                {c.tip && (
-                  <p className="text-xs text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/50 border border-sky-100 dark:border-sky-800 rounded-lg p-2.5 leading-relaxed">
-                    <GlossaryText text={c.tip} />
+            {lesson.concepts.map((c, idx) => {
+              const segId = `concept-${idx}`;
+              const isReading = activeSpeechSegmentId === segId;
+              return (
+                <div
+                  key={c.title}
+                  ref={(el) => {
+                    sectionRefs.current[segId] = el;
+                  }}
+                  className={`bg-white dark:bg-slate-900 border rounded-xl p-5 space-y-2 transition-shadow ${
+                    isReading
+                      ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
+                      : 'border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {c.title}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => requestPlaySegment(segId)}
+                      aria-label={`Ascolta ${c.title}`}
+                      title={`Ascolta: ${c.title}`}
+                      className={`p-1.5 rounded-md border transition-colors shrink-0 cursor-pointer ${
+                        isReading
+                          ? 'bg-sky-600 border-sky-600 text-white'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-sky-700 dark:hover:text-sky-300'
+                      }`}
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <GlossaryText text={c.body} />
                   </p>
-                )}
-              </div>
-            ))}
+                  {c.tip && (
+                    <p className="text-xs text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/50 border border-sky-100 dark:border-sky-800 rounded-lg p-2.5 leading-relaxed">
+                      <GlossaryText text={c.tip} />
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex justify-end">
@@ -477,7 +656,16 @@ export const LessonView: React.FC<LessonViewProps> = ({
       {/* Step 3: Formula Breakdown */}
       {step === 'formula' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-5">
+          <div
+            ref={(el) => {
+              sectionRefs.current['formula-main'] = el;
+            }}
+            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-5 transition-shadow ${
+              activeSpeechSegmentId === 'formula-main'
+                ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
+                : 'border-slate-200 dark:border-slate-800'
+            }`}
+          >
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -487,8 +675,22 @@ export const LessonView: React.FC<LessonViewProps> = ({
                   {lesson.formula.title}
                 </h2>
               </div>
-              <div className="px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-slate-950 border border-slate-800 text-white font-mono text-base sm:text-lg font-semibold tabular-nums">
-                {lesson.formula.expression}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-slate-950 border border-slate-800 text-white font-mono text-base sm:text-lg font-semibold tabular-nums">
+                  {lesson.formula.expression}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => requestPlaySegment('formula-main')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    activeSpeechSegmentId === 'formula-main'
+                      ? 'bg-sky-600 border-sky-600 text-white'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{activeSpeechSegmentId === 'formula-main' ? 'In ascolto' : 'Ascolta'}</span>
+                </button>
               </div>
             </div>
 
@@ -520,11 +722,35 @@ export const LessonView: React.FC<LessonViewProps> = ({
               ))}
             </div>
 
-            <div className="p-4 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-sm text-slate-800 dark:text-emerald-100 leading-relaxed">
-              <strong className="text-emerald-900 dark:text-emerald-300">
-                Esempio pratico ({domainMeta.shortLabel}):{' '}
-              </strong>
-              <GlossaryText text={domainData.formulaExample} />
+            <div
+              ref={(el) => {
+                sectionRefs.current['formula-example'] = el;
+              }}
+              className={`p-4 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/40 border text-sm text-slate-800 dark:text-emerald-100 leading-relaxed flex items-start justify-between gap-3 transition-shadow ${
+                activeSpeechSegmentId === 'formula-example'
+                  ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
+                  : 'border-emerald-200 dark:border-emerald-800'
+              }`}
+            >
+              <div>
+                <strong className="text-emerald-900 dark:text-emerald-300">
+                  Esempio pratico ({domainMeta.shortLabel}):{' '}
+                </strong>
+                <GlossaryText text={domainData.formulaExample} />
+              </div>
+              <button
+                type="button"
+                onClick={() => requestPlaySegment('formula-example')}
+                aria-label="Ascolta esempio pratico"
+                title="Ascolta esempio pratico"
+                className={`p-1.5 rounded-md border transition-colors shrink-0 cursor-pointer ${
+                  activeSpeechSegmentId === 'formula-example'
+                    ? 'bg-sky-600 border-sky-600 text-white'
+                    : 'bg-white/80 dark:bg-slate-900 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-white dark:hover:bg-slate-800'
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -573,14 +799,36 @@ export const LessonView: React.FC<LessonViewProps> = ({
             <div className="space-y-6">
               {lesson.quiz.map((q, qIdx) => {
                 const chosen = quizAnswers[q.id];
+                const segId = `quiz-${q.id}`;
+                const isReadingQuestion = activeSpeechSegmentId === segId;
                 return (
                   <div
                     key={q.id}
-                    className="space-y-2.5 pb-5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 last:pb-0"
+                    ref={(el) => {
+                      sectionRefs.current[segId] = el;
+                    }}
+                    className={`space-y-2.5 pb-5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 last:pb-0 rounded-lg transition-shadow ${
+                      isReadingQuestion ? 'p-3 -mx-3 ring-2 ring-sky-500/60 bg-sky-50/30 dark:bg-sky-950/20' : ''
+                    }`}
                   >
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {qIdx + 1}. {q.question}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {qIdx + 1}. {q.question}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => requestPlaySegment(segId)}
+                        aria-label={`Ascolta domanda ${qIdx + 1}`}
+                        title={`Ascolta domanda ${qIdx + 1}`}
+                        className={`p-1.5 rounded-md border transition-colors shrink-0 cursor-pointer ${
+                          isReadingQuestion
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-sky-700 dark:hover:text-sky-300'
+                        }`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                       {q.options.map((opt, optIdx) => {
                         const isSelected = chosen === optIdx;

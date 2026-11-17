@@ -20,12 +20,14 @@ import { DOMAIN_OPTIONS } from '../data/domainContent';
 import { useStudy } from '../context/StudyContext';
 import type { BadgeId, LessonId, SectionKey, WeeklyBadgeId } from '../types/radiolab';
 import { triggerGamificationFeedback } from '../utils/feedbackAudio';
+import { getDistractorTrapNote } from '../utils/distractorAnalysis';
 import type { SpeechSegment } from '../utils/speechSynthesis';
 import { BadgeGraphic } from './BadgeGraphic';
 import { CircuitDiagram } from './CircuitDiagram';
 import { CongratulationsModal } from './CongratulationsModal';
 import { GlossaryPopoverProvider, GlossaryText } from './GlossaryText';
-import { LessonAudioBar } from './LessonAudioBar';
+import { InverseFormulaGym } from './InverseFormulaGym';
+import { type CustomSpeakRequest, LessonAudioBar } from './LessonAudioBar';
 import { LessonNotesPanel } from './LessonNotesPanel';
 import { D3SineWaveSimulator } from './simulators/D3SineWaveSimulator';
 import { SimulatorRouter } from './simulators/SimulatorRouter';
@@ -89,6 +91,8 @@ export const LessonView: React.FC<LessonViewProps> = ({
     segmentId: string;
     nonce: number;
   } | null>(null);
+  const [customSpeakRequest, setCustomSpeakRequest] = useState<CustomSpeakRequest | null>(null);
+  const [selectedSymbolIndex, setSelectedSymbolIndex] = useState<number | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [showCongratsModal, setShowCongratsModal] = useState(false);
@@ -128,12 +132,16 @@ export const LessonView: React.FC<LessonViewProps> = ({
     setShowCongratsModal(false);
     setActiveSpeechSegmentId(null);
     setSpeechPlayRequest(null);
+    setCustomSpeakRequest(null);
+    setSelectedSymbolIndex(null);
   }, [lesson.id]);
 
   // Clear active audio highlight when switching step
   useEffect(() => {
     setActiveSpeechSegmentId(null);
     setSpeechPlayRequest(null);
+    setCustomSpeakRequest(null);
+    setSelectedSymbolIndex(null);
   }, [step]);
 
   // Scroll smoothly to the highlighted section/diagram while listening
@@ -215,6 +223,24 @@ export const LessonView: React.FC<LessonViewProps> = ({
 
   const requestPlaySegment = (segmentId: string) => {
     setSpeechPlayRequest({ segmentId, nonce: Date.now() });
+  };
+
+  const handleSelectCircuitSymbol = (index: number) => {
+    const sym = lesson.circuitBasis.symbols[index];
+    if (!sym) return;
+    setSelectedSymbolIndex(index);
+    setCustomSpeakRequest({
+      title: sym.name,
+      text: `${sym.name}, simbolo ${sym.symbol}. ${sym.role}`,
+      nonce: Date.now(),
+    });
+  };
+
+  const handleAutoAdvanceStep = () => {
+    const idx = STEPS.findIndex((s) => s.key === step);
+    if (idx === -1 || idx >= STEPS.length - 1) return;
+    const nextStepKey = STEPS[idx + 1].key;
+    void goNextStep(step, nextStepKey);
   };
 
   const goNextStep = async (current: SectionKey, target: SectionKey) => {
@@ -386,13 +412,6 @@ export const LessonView: React.FC<LessonViewProps> = ({
             );
           })}
         </div>
-        <LessonAudioBar
-          segments={speechSegments}
-          activeSegmentId={activeSpeechSegmentId}
-          onActiveSegmentChange={setActiveSpeechSegmentId}
-          playRequest={speechPlayRequest}
-        />
-
         {(step === 'analogy' || step === 'formula') && (
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Suggerimento: clicca sui termini tecnici sottolineati per aprire la definizione rapida dal glossario.
@@ -407,7 +426,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
             ref={(el) => {
               sectionRefs.current['hook-analogy'] = el;
             }}
-            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
+            className={`scroll-mb-32 bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
               activeSpeechSegmentId === 'hook-analogy'
                 ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
                 : 'border-slate-200 dark:border-slate-800'
@@ -466,7 +485,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
             ref={(el) => {
               sectionRefs.current['circuit'] = el;
             }}
-            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
+            className={`scroll-mb-32 bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-4 transition-shadow ${
               activeSpeechSegmentId === 'circuit'
                 ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
                 : 'border-slate-200 dark:border-slate-800'
@@ -500,27 +519,44 @@ export const LessonView: React.FC<LessonViewProps> = ({
               </button>
             </div>
 
-            <CircuitDiagram diagramId={lesson.circuitBasis.diagramId} />
+            <CircuitDiagram
+              diagramId={lesson.circuitBasis.diagramId}
+              selectedSymbolIndex={selectedSymbolIndex}
+              onSelectSymbol={handleSelectCircuitSymbol}
+            />
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Suggerimento: clicca direttamente su un componente nello schema o su una scheda qui sotto per evidenziarlo e ascoltarne il ruolo.
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {lesson.circuitBasis.symbols.map((sym) => (
-                <div
-                  key={sym.name}
-                  className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      {sym.name}
-                    </span>
-                    <span className="font-mono text-xs font-semibold text-sky-700 dark:text-sky-400">
-                      {sym.symbol}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    <GlossaryText text={sym.role} />
-                  </p>
-                </div>
-              ))}
+              {lesson.circuitBasis.symbols.map((sym, symIdx) => {
+                const isSelected = selectedSymbolIndex === symIdx;
+                return (
+                  <button
+                    key={sym.name}
+                    type="button"
+                    onClick={() => handleSelectCircuitSymbol(symIdx)}
+                    className={`p-3.5 rounded-lg border text-left space-y-1 transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500 dark:border-sky-400 ring-1 ring-sky-500/40'
+                        : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        {sym.name}
+                      </span>
+                      <span className="font-mono text-xs font-semibold text-sky-700 dark:text-sky-400">
+                        {sym.symbol}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      <GlossaryText text={sym.role} />
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -534,7 +570,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
                   ref={(el) => {
                     sectionRefs.current[segId] = el;
                   }}
-                  className={`bg-white dark:bg-slate-900 border rounded-xl p-5 space-y-2 transition-shadow ${
+                  className={`scroll-mb-32 bg-white dark:bg-slate-900 border rounded-xl p-5 space-y-2 transition-shadow ${
                     isReading
                       ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
                       : 'border-slate-200 dark:border-slate-800'
@@ -660,7 +696,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
             ref={(el) => {
               sectionRefs.current['formula-main'] = el;
             }}
-            className={`bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-5 transition-shadow ${
+            className={`scroll-mb-32 bg-white dark:bg-slate-900 border rounded-xl p-6 space-y-5 transition-shadow ${
               activeSpeechSegmentId === 'formula-main'
                 ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
                 : 'border-slate-200 dark:border-slate-800'
@@ -726,7 +762,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
               ref={(el) => {
                 sectionRefs.current['formula-example'] = el;
               }}
-              className={`p-4 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/40 border text-sm text-slate-800 dark:text-emerald-100 leading-relaxed flex items-start justify-between gap-3 transition-shadow ${
+              className={`scroll-mb-32 p-4 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/40 border text-sm text-slate-800 dark:text-emerald-100 leading-relaxed flex items-start justify-between gap-3 transition-shadow ${
                 activeSpeechSegmentId === 'formula-example'
                   ? 'border-sky-400 dark:border-sky-500 ring-2 ring-sky-500/60'
                   : 'border-emerald-200 dark:border-emerald-800'
@@ -753,6 +789,8 @@ export const LessonView: React.FC<LessonViewProps> = ({
               </button>
             </div>
           </div>
+
+          <InverseFormulaGym lessonId={lesson.id} />
 
           <div className="flex flex-wrap items-center justify-between gap-4">
             <button
@@ -807,7 +845,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
                     ref={(el) => {
                       sectionRefs.current[segId] = el;
                     }}
-                    className={`space-y-2.5 pb-5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 last:pb-0 rounded-lg transition-shadow ${
+                    className={`scroll-mb-32 space-y-2.5 pb-5 border-b border-slate-100 dark:border-slate-800 last:border-b-0 last:pb-0 rounded-lg transition-shadow ${
                       isReadingQuestion ? 'p-3 -mx-3 ring-2 ring-sky-500/60 bg-sky-50/30 dark:bg-sky-950/20' : ''
                     }`}
                   >
@@ -876,9 +914,16 @@ export const LessonView: React.FC<LessonViewProps> = ({
                     </div>
 
                     {quizSubmitted && (
-                      <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg p-3 leading-relaxed">
-                        <strong>Spiegazione:</strong> <GlossaryText text={q.explanation} />
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg p-3 leading-relaxed">
+                          <strong>Spiegazione:</strong> <GlossaryText text={q.explanation} />
+                        </p>
+                        {typeof chosen === 'number' && chosen !== q.correctIndex && (
+                          <p className="text-xs text-amber-900 dark:text-amber-200 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-3 leading-relaxed">
+                            <strong>Errore tipico da evitare:</strong> {getDistractorTrapNote(q, chosen)}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -978,6 +1023,18 @@ export const LessonView: React.FC<LessonViewProps> = ({
         isOpen={notesOpen}
         onToggleOpen={() => setNotesOpen((v) => !v)}
         panelRef={notesPanelRef}
+      />
+
+      {/* Persistent sticky audio control bar visible throughout the lesson */}
+      <LessonAudioBar
+        sticky
+        segments={speechSegments}
+        activeSegmentId={activeSpeechSegmentId}
+        onActiveSegmentChange={setActiveSpeechSegmentId}
+        playRequest={speechPlayRequest}
+        customSpeakRequest={customSpeakRequest}
+        hasNextStep={step !== 'quiz'}
+        onAutoAdvanceStep={handleAutoAdvanceStep}
       />
 
       {/* Celebratory Modal on passing lesson quiz (>= 70%) */}

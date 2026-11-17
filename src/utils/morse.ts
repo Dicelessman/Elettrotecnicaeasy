@@ -281,6 +281,8 @@ export function playMorseAudio(
     wpm?: number;
     farnsworth?: boolean;
     freqHz?: number;
+    noiseLevel?: number;
+    qrmEnabled?: boolean;
     onStep?: (seg: MorseTimelineSegment | null, index: number) => void;
     onDone?: () => void;
   } = {}
@@ -303,6 +305,10 @@ export function playMorseAudio(
 
   let osc: OscillatorNode | null = null;
   let gainNode: GainNode | null = null;
+  let noiseSource: AudioBufferSourceNode | null = null;
+  let noiseGain: GainNode | null = null;
+  let qrmOsc: OscillatorNode | null = null;
+  let qrmGain: GainNode | null = null;
 
   if (ctx) {
     osc = ctx.createOscillator();
@@ -324,6 +330,61 @@ export function playMorseAudio(
         gainNode.gain.linearRampToValueAtTime(0.0001, cursorSec + durSec);
       }
       cursorSec += durSec;
+    }
+
+    const totalDurSec = Math.max(0.2, cursorSec - ctx.currentTime + 0.05);
+
+    // Optional PRO QRN atmospheric band-pass noise
+    const noiseLvl = Math.max(0, Math.min(0.45, opts.noiseLevel ?? 0));
+    if (noiseLvl > 0.005) {
+      const bufferLen = Math.max(1024, Math.floor(ctx.sampleRate * Math.min(2, totalDurSec)));
+      const buffer = ctx.createBuffer(1, bufferLen, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferLen; i += 1) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+      noiseSource.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(freq, ctx.currentTime);
+      filter.Q.setValueAtTime(2.2, ctx.currentTime);
+
+      noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(noiseLvl * 0.18, ctx.currentTime);
+
+      noiseSource.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noiseSource.start(ctx.currentTime + 0.01);
+      noiseSource.stop(cursorSec + 0.04);
+    }
+
+    // Optional PRO QRM weak adjacent-frequency CW interference
+    if (opts.qrmEnabled) {
+      qrmOsc = ctx.createOscillator();
+      qrmGain = ctx.createGain();
+      qrmOsc.type = 'sine';
+      qrmOsc.frequency.setValueAtTime(freq + 145, ctx.currentTime);
+      qrmGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      qrmOsc.connect(qrmGain);
+      qrmGain.connect(ctx.destination);
+
+      let qrmCursor = ctx.currentTime + 0.08;
+      let toggle = 0;
+      while (qrmCursor < cursorSec - 0.1) {
+        const pulse = toggle % 3 === 0 ? 0.14 : 0.055;
+        qrmGain.gain.setValueAtTime(0.0001, qrmCursor);
+        qrmGain.gain.linearRampToValueAtTime(0.045, qrmCursor + 0.006);
+        qrmGain.gain.setValueAtTime(0.045, qrmCursor + pulse);
+        qrmGain.gain.linearRampToValueAtTime(0.0001, qrmCursor + pulse + 0.006);
+        qrmCursor += pulse + (toggle % 4 === 3 ? 0.16 : 0.06);
+        toggle += 1;
+      }
+      qrmOsc.start(ctx.currentTime + 0.02);
+      qrmOsc.stop(cursorSec + 0.04);
     }
 
     osc.start(ctx.currentTime + 0.02);
@@ -356,11 +417,23 @@ export function playMorseAudio(
     for (const t of timers) {
       window.clearTimeout(t);
     }
-    if (osc && gainNode && ctx) {
+    if (ctx) {
       try {
-        gainNode.gain.cancelScheduledValues(ctx.currentTime);
-        gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.01);
+        if (osc && gainNode) {
+          gainNode.gain.cancelScheduledValues(ctx.currentTime);
+          gainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.01);
+        }
+        if (noiseSource && noiseGain) {
+          noiseGain.gain.cancelScheduledValues(ctx.currentTime);
+          noiseGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          noiseSource.stop(ctx.currentTime + 0.01);
+        }
+        if (qrmOsc && qrmGain) {
+          qrmGain.gain.cancelScheduledValues(ctx.currentTime);
+          qrmGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          qrmOsc.stop(ctx.currentTime + 0.01);
+        }
       } catch {
         // Ignore already stopped
       }

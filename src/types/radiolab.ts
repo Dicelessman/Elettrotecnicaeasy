@@ -293,3 +293,17 @@ export interface StudyGroupMember {
   totalMinutesStudied: number;
   joinedAtMs: number;
 }
+
+export interface LabPreset {
+  lessonId: LessonId;
+  summary: string;
+  nonce: number;
+  params: {
+    freqMhz?: number;
+    txPower?: number;
+    loadOhm?: number;
+    topology?: 'series' | 'parallel';
+    cutoffMhz?: number;
+  };
+}
+

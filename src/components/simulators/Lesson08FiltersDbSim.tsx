@@ -1,17 +1,29 @@
 import React, { useEffect, useState } from 'react';
+import type { LabPreset } from '../../types/radiolab';
 import { ReadoutCell, SimulatorShell } from './SimulatorShell';
 
 interface Props {
   onChallengeComplete?: () => void;
+  preset?: LabPreset | null;
 }
 
 type FilterType = 'lowpass' | 'highpass' | 'bandpass' | 'notch';
 
-export const Lesson08FiltersDbSim: React.FC<Props> = ({ onChallengeComplete }) => {
+export const Lesson08FiltersDbSim: React.FC<Props> = ({ onChallengeComplete, preset }) => {
   const [filterType, setFilterType] = useState<FilterType>('lowpass');
   const [cutoffMhz, setCutoffMhz] = useState<number>(15);
   const [testFreqMhz, setTestFreqMhz] = useState<number>(30);
   const [challengeDone, setChallengeDone] = useState(false);
+
+  useEffect(() => {
+    if (!preset || preset.lessonId !== 'lesson-08') return;
+    if (typeof preset.params.cutoffMhz === 'number') {
+      setCutoffMhz(Math.max(5, Math.min(40, Math.round(preset.params.cutoffMhz))));
+    }
+    if (typeof preset.params.freqMhz === 'number') {
+      setTestFreqMhz(Math.max(2, Math.min(50, Math.round(preset.params.freqMhz))));
+    }
+  }, [preset]);
 
   const calcGainDb = (f: number): number => {
     const ratio = f / Math.max(1, cutoffMhz);

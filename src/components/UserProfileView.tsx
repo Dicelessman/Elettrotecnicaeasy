@@ -21,6 +21,7 @@ import {
   Printer,
   RefreshCw,
   Smartphone,
+  Sparkles,
   Sun,
   Trash2,
   Trophy,
@@ -72,6 +73,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
     leaderboardEntries,
     currentRank,
     nextRank,
+    proMode,
+    setProMode,
     signInWithGoogle,
     signOutUser,
     updateUserPreferences,
@@ -473,6 +476,33 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onOpenLesson }
               }`}
             >
               {profile.focusMode ? 'Attiva' : 'Disattiva'}
+            </button>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  Modalità PRO (Laboratorio Avanzato)
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+                  Abilita il banco guasti &ldquo;Trova il guasto&rdquo;, il ponte Utilità → Laboratorio e QRN/QRM in Morse.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={proMode}
+              onClick={() => setProMode(!proMode)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                proMode
+                  ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              {proMode ? 'Attiva' : 'Disattiva'}
             </button>
           </div>
 

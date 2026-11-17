@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import type { LabPreset } from '../../types/radiolab';
 import { ReadoutCell, SimulatorShell } from './SimulatorShell';
 
 interface Props {
   onChallengeComplete?: () => void;
+  preset?: LabPreset | null;
 }
 
 type AntennaType = 'dipole' | 'inv-v' | 'gp' | 'yagi';
@@ -14,12 +16,19 @@ const BANDS = [
   { label: '70cm UHF (433 MHz)', freq: 433 },
 ];
 
-export const Lesson11AntennaSim: React.FC<Props> = ({ onChallengeComplete }) => {
+export const Lesson11AntennaSim: React.FC<Props> = ({ onChallengeComplete, preset }) => {
   const [antennaType, setAntennaType] = useState<AntennaType>('inv-v');
   const [freqMhz, setFreqMhz] = useState<number>(7.1);
   const [polTiltDeg, setPolTiltDeg] = useState<number>(0);
   const [seenTilt90, setSeenTilt90] = useState(false);
   const [challengeDone, setChallengeDone] = useState(false);
+
+  useEffect(() => {
+    if (!preset || preset.lessonId !== 'lesson-11') return;
+    if (typeof preset.params.freqMhz === 'number' && preset.params.freqMhz > 0) {
+      setFreqMhz(preset.params.freqMhz);
+    }
+  }, [preset]);
 
   const armMeters = 72 / freqMhz;
   const gpCm = 7200 / freqMhz;
@@ -211,9 +220,12 @@ export const Lesson11AntennaSim: React.FC<Props> = ({ onChallengeComplete }) => 
           </div>
 
           <div>
-            <span className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
-              Banda Operativa
-            </span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
+              <span>Banda Operativa</span>
+              <span className="font-mono text-[11px] text-sky-700 dark:text-sky-400">
+                {freqMhz} MHz
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               {BANDS.map((b) => (
                 <button

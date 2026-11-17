@@ -17,8 +17,17 @@ import { LESSONS, SCOUT_RANKS } from '../data/curriculum';
 import { useStudy, type QuickReviewOutcome } from '../context/StudyContext';
 import type { LessonDefinition, LessonId, QuizQuestion } from '../types/radiolab';
 import { triggerGamificationFeedback } from '../utils/feedbackAudio';
+import { getDistractorTrapNote } from '../utils/distractorAnalysis';
 import { generateParametricQuestions } from '../utils/parametricQuiz';
-import { SMART_GLOSSARY_ENTRIES, type SmartGlossaryEntry } from '../utils/smartGlossary';
+import {
+  computeNextSm2Record,
+  loadSm2Map,
+  saveSm2Map,
+  type FlashcardDeckCategory,
+  type Sm2CardRecord,
+  UNIFIED_FLASHCARDS,
+  type UnifiedFlashcard,
+} from '../utils/spacedFlashcards';
 
 interface QuickReviewViewProps {
   onOpenLesson: (lessonId: LessonId) => void;
@@ -27,6 +36,13 @@ interface QuickReviewViewProps {
 
 type ReviewMode = 'random' | 'errors' | 'flashcards';
 type FlashcardFilter = 'to-learn' | 'all';
+
+const DECK_CATEGORY_TABS: { id: FlashcardDeckCategory; label: string }[] = [
+  { id: 'all', label: 'Tutti i mazzi' },
+  { id: 'symbols-prefixes', label: 'Simboli & Prefissi SI' },
+  { id: 'nato-q', label: 'Codice Q & NATO' },
+  { id: 'glossary-formulas', label: 'Concetti & Formule' },
+];
 
 interface ReviewQuestionItem extends QuizQuestion {
   lessonId: LessonId;
@@ -145,8 +161,11 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
   const [outcome, setOutcome] = useState<QuickReviewOutcome | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Flashcards state
+  // Flashcards state (SM-2)
   const [flashcardFilter, setFlashcardFilter] = useState<FlashcardFilter>('to-learn');
+  const [deckCategory, setDeckCategory] = useState<FlashcardDeckCategory>('all');
+  const [sm2Map, setSm2Map] = useState<Record<string, Sm2CardRecord>>(() => loadSm2Map());
+  const [sm2Feedback, setSm2Feedback] = useState<string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
@@ -205,12 +224,23 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
     [profile.masteredFlashcards]
   );
 
-  const flashcardDeck: SmartGlossaryEntry[] = useMemo(() => {
+  const flashcardDeck: UnifiedFlashcard[] = useMemo(() => {
+    const now = Date.now();
+    const byDeck =
+      deckCategory === 'all'
+        ? UNIFIED_FLASHCARDS
+        : UNIFIED_FLASHCARDS.filter((c) => c.deck === deckCategory);
+
     if (flashcardFilter === 'to-learn') {
-      return SMART_GLOSSARY_ENTRIES.filter((entry) => !masteredSet.has(entry.id));
+      const due = byDeck.filter((card) => {
+        const rec = sm2Map[card.id];
+        if (rec) return rec.dueAtMs <= now;
+        return !masteredSet.has(card.id);
+      });
+      return [...due].sort((a, b) => (sm2Map[a.id]?.dueAtMs ?? 0) - (sm2Map[b.id]?.dueAtMs ?? 0));
     }
-    return SMART_GLOSSARY_ENTRIES;
-  }, [flashcardFilter, masteredSet]);
+    return byDeck;
+  }, [deckCategory, flashcardFilter, masteredSet, sm2Map]);
 
   useEffect(() => {
     if (flashcardIndex >= flashcardDeck.length && flashcardDeck.length > 0) {
@@ -218,6 +248,25 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
       setIsFlipped(false);
     }
   }, [flashcardDeck.length, flashcardIndex]);
+
+  const handleSm2Rate = (card: UnifiedFlashcard, quality: 0 | 1 | 2 | 3) => {
+    const res = computeNextSm2Record(sm2Map[card.id], quality);
+    const nextMap = { ...sm2Map, [card.id]: res.record };
+    setSm2Map(nextMap);
+    saveSm2Map(nextMap);
+    setSm2Feedback(`Prossima revisione: ${res.label}`);
+    setIsFlipped(false);
+
+    if (res.markMastered && !masteredSet.has(card.id)) {
+      void toggleFlashcardMastered(card.id);
+    } else if (quality === 0 && masteredSet.has(card.id)) {
+      void toggleFlashcardMastered(card.id);
+    }
+
+    if (flashcardDeck.length > 1) {
+      setFlashcardIndex((i) => (i + 1) % flashcardDeck.length);
+    }
+  };
 
   const totalPoolQuestions = completedLessons.reduce((acc, l) => acc + l.quiz.length, 0);
   const currentQuestion = deck[currentIndex];
@@ -374,21 +423,21 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
         >
           <Layers className="w-4 h-4 shrink-0" />
           <span>
-            Flashcard ({profile.masteredFlashcards.length}/{SMART_GLOSSARY_ENTRIES.length})
+            Flashcard ({profile.masteredFlashcards.length}/{UNIFIED_FLASHCARDS.length})
           </span>
         </button>
       </div>
 
-      {/* MODE 3: GLOSSARY FLASHCARDS */}
+      {/* MODE 3: SPACED REPETITION FLASHCARDS (SM-2) */}
       {mode === 'flashcards' ? (
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 sm:p-8 space-y-6">
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 sm:p-8 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h1 className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                Flashcard del Glossario Intelligente
+                Flashcard Rapide · Ripetizione Spaziata (SM-2)
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Clicca sulla scheda per girarla e verifica se ricordi significato, formula e consiglio d&apos;esame.
+                Simboli circuitali, prefissi SI, Codice Q, alfabeto NATO e formule chiave con intervalli intelligenti.
               </p>
             </div>
 
@@ -399,6 +448,7 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                   setFlashcardFilter('to-learn');
                   setFlashcardIndex(0);
                   setIsFlipped(false);
+                  setSm2Feedback(null);
                 }}
                 className={`px-3 py-1.5 rounded-md font-medium cursor-pointer ${
                   flashcardFilter === 'to-learn'
@@ -406,7 +456,7 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                     : 'text-slate-600 dark:text-slate-300'
                 }`}
               >
-                Da ripassare ({SMART_GLOSSARY_ENTRIES.length - profile.masteredFlashcards.length})
+                In scadenza ({flashcardFilter === 'to-learn' ? flashcardDeck.length : 'SM-2'})
               </button>
               <button
                 type="button"
@@ -414,6 +464,7 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                   setFlashcardFilter('all');
                   setFlashcardIndex(0);
                   setIsFlipped(false);
+                  setSm2Feedback(null);
                 }}
                 className={`px-3 py-1.5 rounded-md font-medium cursor-pointer ${
                   flashcardFilter === 'all'
@@ -421,19 +472,51 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                     : 'text-slate-600 dark:text-slate-300'
                 }`}
               >
-                Tutte ({SMART_GLOSSARY_ENTRIES.length})
+                Tutte ({UNIFIED_FLASHCARDS.length})
               </button>
             </div>
           </div>
+
+          {/* Deck Category Filters */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {DECK_CATEGORY_TABS.map((tab) => {
+              const active = deckCategory === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setDeckCategory(tab.id);
+                    setFlashcardIndex(0);
+                    setIsFlipped(false);
+                    setSm2Feedback(null);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    active
+                      ? 'bg-sky-600 border-sky-600 text-white'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {sm2Feedback && (
+            <div className="text-xs font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2">
+              Schedulazione salvata · {sm2Feedback}
+            </div>
+          )}
 
           {!activeFlashcard ? (
             <div className="py-10 text-center space-y-3">
               <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-                Hai segnato tutte le flashcard come imparate!
+                Nessuna scheda in scadenza in questo mazzo!
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-                Ottimo lavoro! Puoi passare al filtro &ldquo;Tutte&rdquo; per un ripasso generale quando vuoi.
+                Tutte le schede selezionate sono state programmate per i prossimi giorni. Puoi passare a &ldquo;Tutte&rdquo; o cambiare mazzo.
               </p>
               <button
                 type="button"
@@ -444,15 +527,16 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                 }}
                 className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
               >
-                Mostra tutte le {SMART_GLOSSARY_ENTRIES.length} flashcard
+                Mostra tutte le schede del mazzo
               </button>
             </div>
           ) : (
             <div className="space-y-5">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                 <span>
-                  Modulo {String(activeFlashcard.lessonNumber).padStart(2, '0')} ·{' '}
-                  {activeFlashcard.lessonShortTitle}
+                  {activeFlashcard.lessonNumber
+                    ? `Modulo ${String(activeFlashcard.lessonNumber).padStart(2, '0')} · ${activeFlashcard.categoryLabel}`
+                    : activeFlashcard.categoryLabel}
                 </span>
                 <span>
                   Scheda {flashcardIndex + 1} / {flashcardDeck.length}
@@ -470,42 +554,41 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
               >
                 <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold text-sky-700 dark:text-sky-400">
-                    {activeFlashcard.kindLabel} · {activeFlashcard.category}
+                    {activeFlashcard.kindLabel} · {activeFlashcard.categoryLabel}
                   </span>
-                  <span>{isFlipped ? 'Retro · Definizione' : 'Fronte · Clicca per girare'}</span>
+                  <span>{isFlipped ? 'Retro · Verifica e vota sotto' : 'Fronte · Clicca per girare'}</span>
                 </div>
 
                 {!isFlipped ? (
                   <div className="py-4 text-center space-y-2">
                     <div className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50">
-                      {activeFlashcard.term}
+                      {activeFlashcard.frontTitle}
                     </div>
-                    {activeFlashcard.symbol && (
+                    {activeFlashcard.frontSubtitle && (
                       <div className="font-mono text-sm text-sky-700 dark:text-sky-400">
-                        Simbolo: {activeFlashcard.symbol}
-                        {activeFlashcard.unit ? ` (${activeFlashcard.unit})` : ''}
+                        {activeFlashcard.frontSubtitle}
                       </div>
                     )}
                     <p className="text-xs text-slate-500 dark:text-slate-400 pt-2">
-                      Prova a spiegarlo ad alta voce, poi tocca la scheda per verificare.
+                      Prova a rispondere mentalmente, poi tocca la scheda per vedere la risposta e impostare l&apos;intervallo SM-2.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="text-base font-bold text-slate-900 dark:text-slate-50">
-                      {activeFlashcard.term}
-                      {activeFlashcard.formula && (
+                      {activeFlashcard.frontTitle}
+                      {activeFlashcard.backFormula && (
                         <span className="ml-2 font-mono text-xs px-2 py-0.5 rounded bg-slate-900 text-white">
-                          {activeFlashcard.formula}
+                          {activeFlashcard.backFormula}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-                      {activeFlashcard.definition}
+                      {activeFlashcard.backMain}
                     </p>
-                    {activeFlashcard.examTip && (
+                    {activeFlashcard.backTip && (
                       <p className="text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
-                        <strong>Esame:</strong> {activeFlashcard.examTip}
+                        <strong>Nota:</strong> {activeFlashcard.backTip}
                       </p>
                     )}
                   </div>
@@ -513,13 +596,53 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
 
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                   <span>
-                    {masteredSet.has(activeFlashcard.id)
-                      ? 'Stato: Già imparata'
-                      : 'Stato: Da consolidare'}
+                    {sm2Map[activeFlashcard.id]
+                      ? `Ripetizioni SM-2: ${sm2Map[activeFlashcard.id].repetitions} · Intervallo attuale: ${sm2Map[activeFlashcard.id].intervalDays}g`
+                      : masteredSet.has(activeFlashcard.id)
+                        ? 'Stato: Imparata'
+                        : 'Stato: Nuova scheda'}
                   </span>
-                  <span>Tocca la scheda per ruotare ↻</span>
+                  <span>Tocca per ruotare ↻</span>
                 </div>
               </button>
+
+              {isFlipped && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    Quanto è stato facile ricordarla? (Algoritmo SM-2)
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSm2Rate(activeFlashcard, 0)}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/70 cursor-pointer"
+                    >
+                      Da ripetere (1 min)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSm2Rate(activeFlashcard, 1)}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/70 cursor-pointer"
+                    >
+                      Difficile (1 g)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSm2Rate(activeFlashcard, 2)}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/70 cursor-pointer"
+                    >
+                      Buono (3 g)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSm2Rate(activeFlashcard, 3)}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-emerald-400 dark:border-emerald-700 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
+                    >
+                      Facile (7+ g)
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -528,6 +651,7 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                     disabled={flashcardDeck.length <= 1}
                     onClick={() => {
                       setIsFlipped(false);
+                      setSm2Feedback(null);
                       setFlashcardIndex((i) => (i - 1 + flashcardDeck.length) % flashcardDeck.length);
                     }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-40"
@@ -540,6 +664,7 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                     disabled={flashcardDeck.length <= 1}
                     onClick={() => {
                       setIsFlipped(false);
+                      setSm2Feedback(null);
                       setFlashcardIndex((i) => (i + 1) % flashcardDeck.length);
                     }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-40"
@@ -549,34 +674,15 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {activeFlashcard.lessonId && activeFlashcard.lessonNumber && (
                   <button
                     type="button"
-                    onClick={() => onOpenLesson(activeFlashcard.primaryLessonId)}
+                    onClick={() => onOpenLesson(activeFlashcard.lessonId!)}
                     className="px-3 py-2 text-xs font-medium text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
                   >
                     Apri Modulo {String(activeFlashcard.lessonNumber).padStart(2, '0')} →
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void toggleFlashcardMastered(activeFlashcard.id);
-                      setIsFlipped(false);
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg cursor-pointer transition-colors ${
-                      masteredSet.has(activeFlashcard.id)
-                        ? 'bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>
-                      {masteredSet.has(activeFlashcard.id)
-                        ? 'Imparata (annulla)'
-                        : 'Segna come imparata'}
-                    </span>
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -743,18 +849,27 @@ export const QuickReviewView: React.FC<QuickReviewViewProps> = ({
                   className="space-y-4"
                 >
                   <div
-                    className={`p-4 rounded-xl border text-xs sm:text-sm leading-relaxed ${
+                    className={`p-4 rounded-xl border text-xs sm:text-sm leading-relaxed space-y-2 ${
                       chosenIndex === currentQuestion.correctIndex
                         ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-slate-800 dark:text-emerald-100'
                         : 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-slate-800 dark:text-amber-100'
                     }`}
                   >
-                    <strong>
-                      {chosenIndex === currentQuestion.correctIndex
-                        ? 'Risposta esatta! '
-                        : 'Da ripassare: '}
-                    </strong>
-                    {currentQuestion.explanation}
+                    <p>
+                      <strong>
+                        {chosenIndex === currentQuestion.correctIndex
+                          ? 'Risposta esatta! '
+                          : 'Da ripassare: '}
+                      </strong>
+                      {currentQuestion.explanation}
+                    </p>
+                    {typeof chosenIndex === 'number' &&
+                      chosenIndex !== currentQuestion.correctIndex && (
+                        <p className="text-xs text-amber-950 dark:text-amber-200 pt-1 border-t border-amber-200/70 dark:border-amber-800/70">
+                          <strong>Errore tipico:</strong>{' '}
+                          {getDistractorTrapNote(currentQuestion, chosenIndex)}
+                        </p>
+                      )}
                   </div>
 
                   <div className="flex items-center justify-between gap-3">

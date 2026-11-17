@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SimulatorId } from '../../types/radiolab';
+import type { LabPreset, SimulatorId } from '../../types/radiolab';
 import { Lesson01AtomsSim } from './Lesson01AtomsSim';
 import { Lesson02OhmBatteriesSim } from './Lesson02OhmBatteriesSim';
 import { Lesson03AcWaveSim } from './Lesson03AcWaveSim';
@@ -17,17 +17,19 @@ import { Lesson13MorseSim } from './Lesson13MorseSim';
 interface SimulatorRouterProps {
   simulatorId: SimulatorId;
   onChallengeComplete?: () => void;
+  preset?: LabPreset | null;
 }
 
 export const SimulatorRouter: React.FC<SimulatorRouterProps> = ({
   simulatorId,
   onChallengeComplete,
+  preset,
 }) => {
   switch (simulatorId) {
     case 'atoms-flow':
       return <Lesson01AtomsSim onChallengeComplete={onChallengeComplete} />;
     case 'ohm-batteries':
-      return <Lesson02OhmBatteriesSim onChallengeComplete={onChallengeComplete} />;
+      return <Lesson02OhmBatteriesSim onChallengeComplete={onChallengeComplete} preset={preset} />;
     case 'ac-oscilloscope':
       return <Lesson03AcWaveSim onChallengeComplete={onChallengeComplete} />;
     case 'capacitor-power':
@@ -39,13 +41,13 @@ export const SimulatorRouter: React.FC<SimulatorRouterProps> = ({
     case 'rlc-resonance':
       return <Lesson07ResonanceSim onChallengeComplete={onChallengeComplete} />;
     case 'filters-db':
-      return <Lesson08FiltersDbSim onChallengeComplete={onChallengeComplete} />;
+      return <Lesson08FiltersDbSim onChallengeComplete={onChallengeComplete} preset={preset} />;
     case 'diode-transistor':
       return <Lesson09DiodeTransistorSim onChallengeComplete={onChallengeComplete} />;
     case 'modulation-logic':
       return <Lesson10ModulationLogicSim onChallengeComplete={onChallengeComplete} />;
     case 'antenna-field':
-      return <Lesson11AntennaSim onChallengeComplete={onChallengeComplete} />;
+      return <Lesson11AntennaSim onChallengeComplete={onChallengeComplete} preset={preset} />;
     case 'pre-exam-calc':
       return <Lesson12PreExamChallengeSim onChallengeComplete={onChallengeComplete} />;
     case 'morse-cw':

@@ -9,17 +9,21 @@ import {
   Clock,
   Pause,
   Play,
+  Printer,
   RotateCcw,
   Sparkles,
+  Target,
   Trophy,
   XCircle,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { LESSONS, SCOUT_RANKS } from '../data/curriculum';
 import { useStudy, type ExamSimulationOutcome } from '../context/StudyContext';
-import type { LessonId, QuizQuestion } from '../types/radiolab';
+import type { LessonId, LessonProgress, QuizQuestion } from '../types/radiolab';
+import { getDistractorTrapNote } from '../utils/distractorAnalysis';
 import { triggerGamificationFeedback } from '../utils/feedbackAudio';
 import { generateParametricQuestions } from '../utils/parametricQuiz';
+import { PreExamCheatSheetModal } from './PreExamCheatSheetModal';
 
 interface ExamSimulationViewProps {
   onOpenLesson: (lessonId: LessonId) => void;
@@ -45,18 +49,128 @@ function shuffleArray<T>(items: T[]): T[] {
   return copy;
 }
 
-/**
- * Generates 30 unique questions across ALL 13 modules:
- * guarantees 2 random questions from each of the 13 modules (26),
- * plus 2 dynamic parametric numeric calculations, plus 2 leftover questions (total 30).
- */
-function buildExamDeck(): ExamQuestionItem[] {
-  const guaranteed: ExamQuestionItem[] = [];
-  const leftovers: ExamQuestionItem[] = [];
-  const lessonMetaById = new Map<LessonId, { number: number; shortTitle: string }>();
+type ExamMode = 'standard' | 'adaptive';
 
+function buildExamDeck(
+  examMode: ExamMode,
+  lessonProgress: Record<string, LessonProgress>,
+  wrongQuestionIds: string[]
+): { questions: ExamQuestionItem[]; weakLessonIds: LessonId[] } {
+  const lessonMetaById = new Map<LessonId, { number: number; shortTitle: string }>();
   for (const lesson of LESSONS) {
     lessonMetaById.set(lesson.id, { number: lesson.number, shortTitle: lesson.shortTitle });
+  }
+
+  const wrongSet = new Set(wrongQuestionIds);
+  const weakLessons = LESSONS.filter((l) => {
+    const prog = lessonProgress[l.id];
+    const hasWrongInModule = l.quiz.some((q) => wrongSet.has(q.id));
+    if (hasWrongInModule) return true;
+    if (!prog) return true;
+    if (!prog.completed) return true;
+    return (prog.quizBestScore ?? 0) < 75;
+  });
+
+  // Fallback to lowest-scoring modules if all 13 are >= 75% and error-free
+  const effectiveWeak =
+    weakLessons.length > 0
+      ? weakLessons
+      : [...LESSONS]
+          .sort(
+            (a, b) =>
+              (lessonProgress[a.id]?.quizBestScore ?? 100) -
+              (lessonProgress[b.id]?.quizBestScore ?? 100)
+          )
+          .slice(0, 4);
+
+  const weakLessonIds = effectiveWeak.map((l) => l.id);
+
+  if (examMode === 'adaptive') {
+    const picked: ExamQuestionItem[] = [];
+    const usedIds = new Set<string>();
+
+    // 1) Pull previously wrong questions first (up to 6)
+    const wrongPool: ExamQuestionItem[] = [];
+    for (const lesson of LESSONS) {
+      for (const q of lesson.quiz) {
+        if (wrongSet.has(q.id)) {
+          wrongPool.push({
+            ...q,
+            lessonId: lesson.id,
+            lessonNumber: lesson.number,
+            lessonShortTitle: lesson.shortTitle,
+          });
+        }
+      }
+    }
+    for (const q of shuffleArray(wrongPool).slice(0, 6)) {
+      picked.push(q);
+      usedIds.add(q.id);
+    }
+
+    // 2) Fill ~65% (20 questions) from weak modules
+    const weakPool: ExamQuestionItem[] = [];
+    for (const lesson of effectiveWeak) {
+      for (const q of lesson.quiz) {
+        if (!usedIds.has(q.id)) {
+          weakPool.push({
+            ...q,
+            lessonId: lesson.id,
+            lessonNumber: lesson.number,
+            lessonShortTitle: lesson.shortTitle,
+          });
+        }
+      }
+    }
+    for (const q of shuffleArray(weakPool)) {
+      if (picked.length >= 20) break;
+      picked.push(q);
+      usedIds.add(q.id);
+    }
+
+    // 3) 2 dynamic parametric questions focused on weak modules
+    const parametricQuestions: ExamQuestionItem[] = generateParametricQuestions(
+      2,
+      weakLessonIds
+    ).map((item) => {
+      const meta = lessonMetaById.get(item.lessonId) ?? { number: 1, shortTitle: 'Radio' };
+      return {
+        ...item.question,
+        lessonId: item.lessonId,
+        lessonNumber: meta.number,
+        lessonShortTitle: meta.shortTitle,
+      };
+    });
+    picked.push(...parametricQuestions);
+
+    // 4) Remaining 35% across all remaining modules
+    const otherPool: ExamQuestionItem[] = [];
+    for (const lesson of LESSONS) {
+      for (const q of lesson.quiz) {
+        if (!usedIds.has(q.id)) {
+          otherPool.push({
+            ...q,
+            lessonId: lesson.id,
+            lessonNumber: lesson.number,
+            lessonShortTitle: lesson.shortTitle,
+          });
+        }
+      }
+    }
+    for (const q of shuffleArray(otherPool)) {
+      if (picked.length >= EXAM_QUESTION_COUNT) break;
+      picked.push(q);
+      usedIds.add(q.id);
+    }
+
+    return { questions: shuffleArray(picked), weakLessonIds };
+  }
+
+  // Standard balanced mode across all 13 modules
+  const guaranteed: ExamQuestionItem[] = [];
+  const leftovers: ExamQuestionItem[] = [];
+
+  for (const lesson of LESSONS) {
     const shuffled = shuffleArray(lesson.quiz).map<ExamQuestionItem>((q) => ({
       ...q,
       lessonId: lesson.id,
@@ -83,7 +197,7 @@ function buildExamDeck(): ExamQuestionItem[] {
     ...parametricQuestions,
     ...shuffleArray(leftovers).slice(0, extraCount),
   ];
-  return shuffleArray(combined);
+  return { questions: shuffleArray(combined), weakLessonIds };
 }
 
 function formatTimer(seconds: number): string {
@@ -99,13 +213,19 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
 }) => {
   const {
     profile,
+    lessonProgress,
     recordExamSimulationResult,
     recordQuestionOutcomes,
     setIsTrackingStudy,
   } = useStudy();
   const prefersReducedMotion = useReducedMotion();
 
-  const [deck, setDeck] = useState<ExamQuestionItem[]>(() => buildExamDeck());
+  const [examMode, setExamMode] = useState<ExamMode>('standard');
+  const [deckBundle, setDeckBundle] = useState(() =>
+    buildExamDeck('standard', lessonProgress, profile.wrongQuestionIds)
+  );
+  const deck = deckBundle.questions;
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [flaggedIds, setFlaggedIds] = useState<Record<string, boolean>>({});
@@ -202,21 +322,25 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
     }
   }, [secondsRemaining, finished, finishExam]);
 
-  const startFreshExam = useCallback(() => {
-    submitLockRef.current = false;
-    setDeck(buildExamDeck());
-    setCurrentIndex(0);
-    setAnswers({});
-    setFlaggedIds({});
-    setSecondsRemaining(EXAM_DURATION_SECONDS);
-    setIsPaused(false);
-    setConfirmEarlySubmit(false);
-    setFinished(false);
-    setTimedOut(false);
-    setOutcome(null);
-    setReviewFilter('all');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  const startFreshExam = useCallback(
+    (nextMode: ExamMode = examMode) => {
+      submitLockRef.current = false;
+      setExamMode(nextMode);
+      setDeckBundle(buildExamDeck(nextMode, lessonProgress, profile.wrongQuestionIds));
+      setCurrentIndex(0);
+      setAnswers({});
+      setFlaggedIds({});
+      setSecondsRemaining(EXAM_DURATION_SECONDS);
+      setIsPaused(false);
+      setConfirmEarlySubmit(false);
+      setFinished(false);
+      setTimedOut(false);
+      setOutcome(null);
+      setReviewFilter('all');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [examMode, lessonProgress, profile.wrongQuestionIds]
+  );
 
   const answeredCount = useMemo(
     () => deck.filter((q) => typeof answers[q.id] === 'number').length,
@@ -282,14 +406,24 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
             <span>Torna al Percorso</span>
           </button>
 
-          <button
-            type="button"
-            onClick={startFreshExam}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Nuova Simulazione (30 domande)</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCheatSheetOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Scheda Lampo Pre-Esame</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => startFreshExam(examMode)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Nuova Simulazione (30 domande)</span>
+            </button>
+          </div>
         </div>
 
         <motion.section
@@ -498,7 +632,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
                         </button>
                       </div>
 
-                      <div className="text-xs space-y-1 pl-6">
+                      <div className="text-xs space-y-1.5 pl-6">
                         {!isOk && (
                           <div className="text-red-700 dark:text-red-400">
                             <strong>Tua risposta:</strong>{' '}
@@ -511,6 +645,11 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
                         <p className="text-slate-600 dark:text-slate-300 leading-relaxed pt-1">
                           {q.explanation}
                         </p>
+                        {!isOk && typeof chosen === 'number' && (
+                          <p className="text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 leading-relaxed">
+                            <strong>Errore tipico:</strong> {getDistractorTrapNote(q, chosen)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
@@ -519,6 +658,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
             )}
           </div>
         </motion.section>
+        <PreExamCheatSheetModal open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
       </div>
     );
   }
@@ -568,6 +708,15 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
 
           <button
             type="button"
+            onClick={() => setCheatSheetOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Scheda Lampo</span>
+          </button>
+
+          <button
+            type="button"
             disabled={submitting}
             onClick={() => {
               if (unansweredCount > 0) {
@@ -579,6 +728,49 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
           >
             {submitting ? 'Calcolo...' : 'Consegna Esame'}
+          </button>
+        </div>
+      </div>
+
+      {/* Mode Switch: Standard 30 vs Adaptive Weak Modules */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <Target className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span>
+            {examMode === 'adaptive' ? (
+              <>
+                <strong>Modalità Adattiva attiva:</strong> 65% delle domande mirate sui tuoi {deckBundle.weakLessonIds.length} moduli più critici e sugli errori precedenti.
+              </>
+            ) : (
+              <>
+                <strong>Esame Standard:</strong> distribuzione bilanciata (2 domande da ciascuno dei {LESSONS.length} moduli + calcoli dinamici).
+              </>
+            )}
+          </span>
+        </div>
+
+        <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => startFreshExam('standard')}
+            className={`px-3 py-1.5 rounded-md font-medium whitespace-nowrap cursor-pointer ${
+              examMode === 'standard'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300'
+            }`}
+          >
+            Esame Standard
+          </button>
+          <button
+            type="button"
+            onClick={() => startFreshExam('adaptive')}
+            className={`px-3 py-1.5 rounded-md font-medium whitespace-nowrap cursor-pointer ${
+              examMode === 'adaptive'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300'
+            }`}
+          >
+            Allena Moduli Critici (Adattivo)
           </button>
         </div>
       </div>
@@ -746,7 +938,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
               </h2>
               <button
                 type="button"
-                onClick={startFreshExam}
+                onClick={() => startFreshExam(examMode)}
                 className="text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
               >
                 Rimescola 30 domande
@@ -803,6 +995,7 @@ export const ExamSimulationView: React.FC<ExamSimulationViewProps> = ({
           </aside>
         </div>
       )}
+      <PreExamCheatSheetModal open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
     </div>
   );
 };

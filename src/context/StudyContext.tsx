@@ -57,6 +57,7 @@ import { getIsoWeekKey, WEEKLY_BADGES, WEEKLY_CHALLENGES } from '../utils/weekly
 
 const GUEST_STORAGE_KEY = 'radiotecnica_easy_guest_v2';
 const LEGACY_GUEST_STORAGE_KEY = 'onde_scout_guest_v1';
+const PRO_MODE_STORAGE_KEY = 'radiotecnica_pro_mode_v1';
 
 const VALID_BADGES = new Set<string>([
   ...BADGES.map((b) => b.id),
@@ -548,6 +549,8 @@ export interface StudyContextValue {
   recordQuestionOutcomes: (wrongIds: string[], correctIds: string[]) => Promise<void>;
   toggleFlashcardMastered: (flashcardId: string) => Promise<void>;
   touchLessonStudy: (lessonId: LessonId, bonusMinutes?: number) => Promise<void>;
+  proMode: boolean;
+  setProMode: (enabled: boolean) => void;
   notificationBanner: string | null;
   dismissNotificationBanner: () => void;
 }
@@ -573,6 +576,22 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initialGuest.quizAttempts ?? []
   );
   const [fcmDevices, setFcmDevices] = useState<FcmDeviceToken[]>([]);
+  const [proMode, setProModeState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(PRO_MODE_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const setProMode = useCallback((enabled: boolean) => {
+    setProModeState(enabled);
+    try {
+      localStorage.setItem(PRO_MODE_STORAGE_KEY, enabled ? 'true' : 'false');
+    } catch {
+      // Ignore storage error
+    }
+  }, []);
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [studyGroups, setStudyGroups] = useState<StudyGroup[]>([]);
   const [studyGroupMembers, setStudyGroupMembers] = useState<Record<string, StudyGroupMember[]>>({});
@@ -3145,6 +3164,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     recordQuestionOutcomes,
     toggleFlashcardMastered,
     touchLessonStudy,
+    proMode,
+    setProMode,
     notificationBanner,
     dismissNotificationBanner: () => setNotificationBanner(null),
   };

@@ -1,14 +1,26 @@
 import React, { useEffect, useState } from 'react';
+import type { LabPreset } from '../../types/radiolab';
 import { ReadoutCell, SimulatorShell } from './SimulatorShell';
 
 interface Props {
   onChallengeComplete?: () => void;
+  preset?: LabPreset | null;
 }
 
-export const Lesson02OhmBatteriesSim: React.FC<Props> = ({ onChallengeComplete }) => {
+export const Lesson02OhmBatteriesSim: React.FC<Props> = ({ onChallengeComplete, preset }) => {
   const [topology, setTopology] = useState<'series' | 'parallel'>('series');
   const [loadOhm, setLoadOhm] = useState<number>(6);
   const [challengeDone, setChallengeDone] = useState(false);
+
+  useEffect(() => {
+    if (!preset || preset.lessonId !== 'lesson-02') return;
+    if (preset.params.topology) {
+      setTopology(preset.params.topology);
+    }
+    if (typeof preset.params.loadOhm === 'number') {
+      setLoadOhm(Math.max(2, Math.min(24, Math.round(preset.params.loadOhm))));
+    }
+  }, [preset]);
 
   const totalVoltage = topology === 'series' ? 24 : 12;
   const totalAh = topology === 'series' ? 200 : 400;

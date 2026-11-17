@@ -5,6 +5,7 @@ import {
   Cpu,
   Filter,
   FlaskConical,
+  Printer,
   Search,
   Sparkles,
   X,
@@ -16,6 +17,7 @@ import {
   type SmartGlossaryEntry,
   type SmartGlossaryKind,
 } from '../utils/smartGlossary';
+import { PreExamCheatSheetModal } from './PreExamCheatSheetModal';
 
 interface PreExamGlossaryViewProps {
   onOpenLesson: (lessonId: LessonId) => void;
@@ -54,6 +56,7 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
   const [moduleFilter, setModuleFilter] = useState<ModuleFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('by-module');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Quick "/" keyboard shortcut to focus search
@@ -277,25 +280,35 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 shrink-0 text-center">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Termini totali</div>
-              <div className="text-base font-bold font-mono tabular-nums text-slate-900 dark:text-white">
-                {SMART_GLOSSARY_ENTRIES.length}
+          <div className="flex flex-col sm:items-end gap-2.5 shrink-0">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Termini totali</div>
+                <div className="text-base font-bold font-mono tabular-nums text-slate-900 dark:text-white">
+                  {SMART_GLOSSARY_ENTRIES.length}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Visualizzati</div>
+                <div className="text-base font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400">
+                  {filtered.length}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Moduli</div>
+                <div className="text-base font-bold font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+                  {LESSONS.length}
+                </div>
               </div>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Visualizzati</div>
-              <div className="text-base font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400">
-                {filtered.length}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Moduli</div>
-              <div className="text-base font-bold font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
-                {LESSONS.length}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setCheatSheetOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Scheda Lampo Esame (Stampa / PDF)</span>
+            </button>
           </div>
         </div>
 
@@ -562,6 +575,7 @@ export const PreExamGlossaryView: React.FC<PreExamGlossaryViewProps> = ({ onOpen
           {filtered.map((entry) => renderEntryCard(entry))}
         </div>
       )}
+      <PreExamCheatSheetModal open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
     </div>
   );
 };

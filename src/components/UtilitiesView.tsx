@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Antenna,
+  ArrowRight,
   BatteryCharging,
   Calculator,
   CheckCircle2,
@@ -9,12 +10,15 @@ import {
   Play,
   Radio,
   RefreshCw,
+  Sparkles,
   Square,
   Volume2,
   Waves,
   XCircle,
   Zap,
 } from 'lucide-react';
+import { useStudy } from '../context/StudyContext';
+import type { LabPreset } from '../types/radiolab';
 import {
   CHAR_TO_MORSE,
   KOCH_LETTERS,
@@ -29,8 +33,19 @@ import {
   stopMorsePlayback,
 } from '../utils/morse';
 
+interface UtilitiesViewProps {
+  onOpenLabWithPreset?: (preset: LabPreset) => void;
+}
+
 type UtilitiesTab = 'morse-trainer' | 'nato-q' | 'calculators';
 type CalcSubTab = 'antenna' | 'power-db' | 'battery' | 'bands';
+
+const PRO_QSO_CHALLENGES = [
+  { callsign: 'IK2RST', rst: '579', qth: 'MILANO', text: 'DE IK2RST RST 579 QTH MILANO K' },
+  { callsign: 'IU4XYZ', rst: '599', qth: 'BOLOGNA', text: 'DE IU4XYZ RST 599 QTH BOLOGNA K' },
+  { callsign: 'IZ8ABC', rst: '559', qth: 'NAPOLI', text: 'DE IZ8ABC RST 559 QTH NAPOLI K' },
+  { callsign: 'I1QSO', rst: '589', qth: 'TORINO', text: 'DE I1QSO RST 589 QTH TORINO K' },
+];
 
 const ALL_MORSE_CHARS = MORSE_TABLE.map((m) => m.char);
 const KOCH_ORDER = KOCH_LETTERS.map((m) => m.char);
@@ -67,7 +82,8 @@ const RADIO_BANDS = [
   { band: 'PMR446', freq: '446,006 – 446,193 MHz', usage: 'Walkie-talkie uso libero 0,5 W senza licenza (16 ch)' },
 ];
 
-export const UtilitiesView: React.FC = () => {
+export const UtilitiesView: React.FC<UtilitiesViewProps> = ({ onOpenLabWithPreset }) => {
+  const { proMode, setProMode } = useStudy();
   const [activeTab, setActiveTab] = useState<UtilitiesTab>('morse-trainer');
 
   // --- TAB 1: MORSE TRAINER ---
@@ -77,6 +93,13 @@ export const UtilitiesView: React.FC = () => {
   const [cwFreq, setCwFreq] = useState(700);
   const [isPlayingCw, setIsPlayingCw] = useState(false);
   const [lampOn, setLampOn] = useState(false);
+
+  // PRO: Real band conditions (QRN / QRM / Real QSO decode challenge)
+  const [qrnLevel, setQrnLevel] = useState(18); // 0..40 -> 0..0.40
+  const [qrmEnabled, setQrmEnabled] = useState(false);
+  const [qsoIndex, setQsoIndex] = useState(0);
+  const [qsoInput, setQsoInput] = useState('');
+  const [qsoFeedback, setQsoFeedback] = useState<'ok' | 'fail' | null>(null);
 
   // Morse Ear-Training Quiz
   const [quizUseKoch, setQuizUseKoch] = useState(false);
@@ -143,6 +166,8 @@ export const UtilitiesView: React.FC = () => {
       wpm: cwWpm,
       farnsworth: cwFarnsworth < cwWpm,
       freqHz: cwFreq,
+      noiseLevel: proMode ? qrnLevel / 100 : 0,
+      qrmEnabled: proMode ? qrmEnabled : false,
       onStep: (seg) => setLampOn(Boolean(seg?.on)),
       onDone: () => {
         setIsPlayingCw(false);
@@ -157,6 +182,8 @@ export const UtilitiesView: React.FC = () => {
       wpm: Math.max(12, cwWpm),
       farnsworth: false,
       freqHz: cwFreq,
+      noiseLevel: proMode ? qrnLevel / 100 : 0,
+      qrmEnabled: proMode ? qrmEnabled : false,
       onStep: (seg) => setLampOn(Boolean(seg?.on)),
       onDone: () => setLampOn(false),
     });
@@ -307,38 +334,54 @@ export const UtilitiesView: React.FC = () => {
             </p>
           </div>
 
-          <div
-            role="tablist"
-            aria-label="Sezioni Utilità"
-            className="inline-flex flex-wrap gap-1 p-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shrink-0"
-          >
-            {(
-              [
-                { id: 'morse-trainer' as const, label: 'Trainer Morse CW', icon: Headphones },
-                { id: 'nato-q' as const, label: 'NATO & Codici Q', icon: Volume2 },
-                { id: 'calculators' as const, label: 'Calcolatori RF', icon: Calculator },
-              ] as const
-            ).map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    active
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+          <div className="flex flex-col sm:items-end gap-2 shrink-0">
+            <div
+              role="tablist"
+              aria-label="Sezioni Utilità"
+              className="inline-flex flex-wrap gap-1 p-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shrink-0"
+            >
+              {(
+                [
+                  { id: 'morse-trainer' as const, label: 'Trainer Morse CW', icon: Headphones },
+                  { id: 'nato-q' as const, label: 'NATO & Codici Q', icon: Volume2 },
+                  { id: 'calculators' as const, label: 'Calcolatori RF', icon: Calculator },
+                ] as const
+              ).map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      active
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={proMode}
+              onClick={() => setProMode(!proMode)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                proMode
+                  ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700'
+                  : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Modalità PRO (QRN/QRM &amp; Ponte Lab): {proMode ? 'ATTIVA' : 'OFF'}</span>
+            </button>
           </div>
         </div>
       </section>
@@ -457,6 +500,44 @@ export const UtilitiesView: React.FC = () => {
                 {isPlayingCw ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 <span>{isPlayingCw ? 'Ferma Riproduzione' : 'Riproduci Sequenza CW'}</span>
               </button>
+
+              {proMode && (
+                <div className="p-3.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/30 space-y-3 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-amber-900 dark:text-amber-300">
+                      Condizioni Reali di Banda (PRO)
+                    </span>
+                    <span className="font-mono text-[11px] text-amber-700 dark:text-amber-400">
+                      QRN {qrnLevel}% {qrmEnabled ? '· +QRM' : ''}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <label className="space-y-1">
+                      <span className="flex justify-between text-slate-700 dark:text-slate-300">
+                        <span>Rumore atmosferico (QRN)</span>
+                        <span className="font-mono font-semibold">{qrnLevel}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={40}
+                        value={qrnLevel}
+                        onChange={(e) => setQrnLevel(Number(e.target.value))}
+                        className="w-full accent-amber-600"
+                      />
+                    </label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={qrmEnabled}
+                        onChange={(e) => setQrmEnabled(e.target.checked)}
+                        className="w-4 h-4 accent-amber-600 cursor-pointer"
+                      />
+                      <span>Aggiungi QRM (stazione adiacente +145 Hz)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 1B: Audio Recognition Quiz (Ear Training) */}
@@ -639,6 +720,105 @@ export const UtilitiesView: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {proMode && (
+            <section className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-xl p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
+                    Sfida Decodifica QSO Reale su Banda Affollata (PRO)
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ascolta un passaggio QSO reale con QRN/QRM attivi e trascrivi il nominativo o la città QTH.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = (qsoIndex + 1) % PRO_QSO_CHALLENGES.length;
+                    setQsoIndex(nextIdx);
+                    setQsoInput('');
+                    setQsoFeedback(null);
+                  }}
+                  className="text-xs font-semibold text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+                >
+                  Cambia QSO →
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentQso = PRO_QSO_CHALLENGES[qsoIndex];
+                    setIsPlayingCw(true);
+                    playMorseAudio(currentQso.text, {
+                      wpm: cwWpm,
+                      farnsworth: cwFarnsworth < cwWpm,
+                      freqHz: cwFreq,
+                      noiseLevel: Math.max(0.12, qrnLevel / 100),
+                      qrmEnabled,
+                      onStep: (seg) => setLampOn(Boolean(seg?.on)),
+                      onDone: () => {
+                        setIsPlayingCw(false);
+                        setLampOn(false);
+                      },
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>Ascolta QSO #{qsoIndex + 1}</span>
+                </button>
+
+                <input
+                  type="text"
+                  value={qsoInput}
+                  onChange={(e) => {
+                    setQsoInput(e.target.value.toUpperCase());
+                    setQsoFeedback(null);
+                  }}
+                  placeholder="Scrivi nominativo o QTH (es. IK2RST / MILANO)"
+                  className="flex-1 min-w-[220px] px-3 py-2 text-xs font-mono uppercase rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = PRO_QSO_CHALLENGES[qsoIndex];
+                    const clean = qsoInput.trim().toUpperCase();
+                    const ok =
+                      clean.length >= 4 &&
+                      (clean.includes(target.callsign) || clean.includes(target.qth));
+                    setQsoFeedback(ok ? 'ok' : 'fail');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+                >
+                  Verifica QSO
+                </button>
+              </div>
+
+              {qsoFeedback && (
+                <div
+                  className={`text-xs p-3 rounded-lg border ${
+                    qsoFeedback === 'ok'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                      : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200'
+                  }`}
+                >
+                  {qsoFeedback === 'ok' ? (
+                    <span>
+                      Perfetto! Messaggio completo: <strong className="font-mono">{PRO_QSO_CHALLENGES[qsoIndex].text}</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      Non ancora corrispondente. Riprova abbassando leggermente la velocità Farnsworth o riducendo il QRN.
+                    </span>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       )}
 
@@ -905,6 +1085,26 @@ export const UtilitiesView: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {proMode && onOpenLabWithPreset && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenLabWithPreset({
+                        lessonId: 'lesson-11',
+                        summary: `Antenna impostata a ${antFreqMhz} MHz (λ = ${lambdaM.toFixed(2)} m)`,
+                        nonce: Date.now(),
+                        params: { freqMhz: antFreqMhz },
+                      })
+                    }
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+                  >
+                    <span>Apri nel Laboratorio PRO con questi valori</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -992,6 +1192,30 @@ export const UtilitiesView: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {proMode && onOpenLabWithPreset && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenLabWithPreset({
+                        lessonId: 'lesson-08',
+                        summary: `Bilancio RF: TX ${txPowerW} W (${txDbm.toFixed(1)} dBm) · EIRP ${eirpW.toFixed(2)} W`,
+                        nonce: Date.now(),
+                        params: {
+                          cutoffMhz: 10,
+                          freqMhz: Math.max(5, Math.min(45, Math.round(15 + Math.max(0, netGainDb)))),
+                          txPower: txPowerW,
+                        },
+                      })
+                    }
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+                  >
+                    <span>Apri nel Laboratorio PRO (Filtri &amp; dB)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -1091,6 +1315,27 @@ export const UtilitiesView: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {proMode && onOpenLabWithPreset && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const eqOhm = Math.max(2, Math.min(24, Math.round(12 / Math.max(0.5, avgCurrentA))));
+                      onOpenLabWithPreset({
+                        lessonId: 'lesson-02',
+                        summary: `Batteria campo: assorbimento medio ${avgCurrentA.toFixed(2)} A (carico equivalente ${eqOhm} Ω a 12 V)`,
+                        nonce: Date.now(),
+                        params: { topology: 'parallel', loadOhm: eqOhm },
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
+                  >
+                    <span>Apri nel Laboratorio PRO (Batterie &amp; Ohm)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </section>
           )}
 

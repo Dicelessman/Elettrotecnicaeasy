@@ -13,7 +13,7 @@ import { UserProfileView } from './components/UserProfileView';
 import { UtilitiesView } from './components/UtilitiesView';
 import { StudyProvider, useStudy } from './context/StudyContext';
 import { LESSONS } from './data/curriculum';
-import type { AppView, LessonId } from './types/radiolab';
+import type { AppView, LabPreset, LessonId } from './types/radiolab';
 
 class AppErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -60,12 +60,19 @@ class AppErrorBoundary extends Component<
 const AppShell: React.FC = () => {
   const [view, setView] = useState<AppView>('path');
   const [activeLessonId, setActiveLessonId] = useState<LessonId>('lesson-01');
+  const [labPreset, setLabPreset] = useState<LabPreset | null>(null);
   const { profile, notificationBanner, dismissNotificationBanner } = useStudy();
   const isFocusReading = view === 'lesson' && profile.focusMode;
 
   const openLesson = (lessonId: LessonId) => {
     setActiveLessonId(lessonId);
     setView('lesson');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openLabWithPreset = (preset: LabPreset) => {
+    setLabPreset(preset);
+    setView('lab');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -131,8 +138,8 @@ const AppShell: React.FC = () => {
             onBackToPath={() => navigate('path')}
           />
         )}
-        {view === 'lab' && <LabSandboxView onOpenLesson={openLesson} />}
-        {view === 'utilities' && <UtilitiesView />}
+        {view === 'lab' && <LabSandboxView onOpenLesson={openLesson} initialPreset={labPreset} />}
+        {view === 'utilities' && <UtilitiesView onOpenLabWithPreset={openLabWithPreset} />}
         {view === 'glossary' && <PreExamGlossaryView onOpenLesson={openLesson} />}
         {view === 'groups' && <StudyGroupsView onOpenLesson={openLesson} />}
         {view === 'profile' && <UserProfileView onOpenLesson={openLesson} />}
